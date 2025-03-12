@@ -4,26 +4,200 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="782d2ad7-7bdf-4e1a-8f8f-5d2fb13f23f1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/studenthunter.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/accounts/serializers.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/accounts/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/entrypoint.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/manage.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/studenthunter/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/studenthunter/asgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/studenthunter/settings.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/studenthunter/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/studenthunter/wsgi.py" afterDir="false" />
+    <list default="true" id="c2748419-d556-47f4-9548-eae381c2e84e" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/backend/studenthunter/users/serializers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/studenthunter/users/urls/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/studenthunter/users/urls/auth.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/studenthunter/users/urls/default_urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/studenthunter.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/studenthunter.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/admin.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/apps.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/migrations/0001_initial.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/migrations/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/studenthunter/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/models.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/serializers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/tests.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/urls.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/accounts/views.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/entrypoint.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/about/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/about/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/account/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/account/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/account/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/account/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/actions/job-actions.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/actions/job-actions.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/actions/resume-actions.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/actions/resume-actions.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/analytics/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/analytics/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/companies/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/companies/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/jobs/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/jobs/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/register/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/register/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/admin/users/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/admin/users/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/api/job-match/route.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/analytics/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/analytics/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/companies/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/companies/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/events/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/events/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/reports/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/reports/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/campus/students/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/campus/students/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/career-quest/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/career-quest/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/companies/[id]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/companies/[id]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/companies/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/companies/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/employers/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/employers/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/jobs/[id]/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/jobs/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/jobs/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/layout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/login/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/login/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/analytics/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/analytics/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/applications/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/applications/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/company/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/company/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/interviews/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/interviews/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/jobs/new/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/jobs/new/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/manager/settings/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/manager/settings/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/privacy/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/privacy/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/register/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/register/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/resources/[id]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/resources/[id]/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/resources/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/resources/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/applications/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/applications/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/interviews/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/interviews/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/job-matches/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/job-matches/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/profile/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/profile/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/student/saved-jobs/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/student/saved-jobs/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/terms/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/terms/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/app/unauthorized/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/app/unauthorized/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/Footer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/Footer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/Header.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/Header.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/achievements.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/achievements.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/analytics/overview-chart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/analytics/overview-chart.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/analytics/trend-chart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/analytics/trend-chart.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/application-manager.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/application-manager.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/application-questions-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/application-questions-form.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/application-tracker.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/application-tracker.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/dashboard-sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/dashboard-sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/data-table/data-table-toolbar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/data-table/data-table-toolbar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/employer-route.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/employer-route.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/gamification-dashboard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/gamification-dashboard.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/job-application-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/job-application-form.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/job-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/job-card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/job-posting-form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/job-posting-form.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/job-search.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/job-search.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/notification-bell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/notification-bell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/profile-completion.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/profile-completion.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/protected-route.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/protected-route.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/quick-apply-button.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/quick-apply-button.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/resume-upload.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/resume-upload.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/theme-provider.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/theme-provider.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/accordion.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/accordion.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/alert-dialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/alert-dialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/alert.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/alert.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/aspect-ratio.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/aspect-ratio.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/avatar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/avatar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/badge.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/badge.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/breadcrumb.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/breadcrumb.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/button.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/button.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/calendar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/calendar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/carousel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/carousel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/chart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/chart.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/checkbox.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/checkbox.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/collapsible.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/collapsible.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/command.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/command.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/context-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/context-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/dialog.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/dialog.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/drawer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/drawer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/dropdown-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/dropdown-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/form.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/form.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/hover-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/hover-card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/input-otp.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/input-otp.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/input.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/input.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/label.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/label.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/menubar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/menubar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/navigation-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/navigation-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/pagination.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/pagination.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/popover.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/popover.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/progress.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/progress.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/radio-group.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/radio-group.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/resizable.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/resizable.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/scroll-area.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/scroll-area.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/select.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/select.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/separator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/separator.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/sheet.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/sheet.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/sidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/sidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/skeleton.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/skeleton.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/slider.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/slider.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/sonner.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/sonner.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/switch.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/switch.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/table.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/table.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/tabs.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/tabs.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/textarea.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/textarea.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/toast.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/toast.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/toaster.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/toaster.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/toggle-group.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/toggle-group.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/toggle.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/toggle.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/tooltip.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/tooltip.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/use-mobile.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/use-mobile.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/components/ui/use-toast.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components/ui/use-toast.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/contexts/auth-context.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/contexts/auth-context.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/contexts/notification-context.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/contexts/notification-context.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/hooks/use-mobile.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/use-mobile.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/hooks/use-toast.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/hooks/use-toast.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/admin.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/admin.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/applications.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/applications.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/auth.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/auth.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/campus.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/campus.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/career-quest.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/career-quest.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/companies.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/companies.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/company.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/index.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/job.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/jobs.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/jobs.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/notifications.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/notifications.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/resource.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/resources.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/resources.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/user.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/api/user.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/api/users.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-data.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/mock-data.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-data/companies.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/mock-data/companies.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-data/jobs.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/mock-data/jobs.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-data/resources.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/mock-data/resources.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-data/users.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/mock-data/users.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/mock-users.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/lib/utils/profile.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/utils/profile.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/next.config.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/next.config.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/postcss.config.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/postcss.config.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/styles/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/styles/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tailwind.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tailwind.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tsconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tsconfig.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/manage.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/studenthunter/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/studenthunter/users/managers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/studenthunter/asgi.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/studenthunter/settings.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/studenthunter/urls.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/studenthunter/wsgi.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,29 +208,37 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Python Script" />
-        <option value="Dockerfile" />
       </list>
     </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 3
-}</component>
-  <component name="ProjectId" id="2uAHZZgt7mdIkdJycAtPbGr7ThU" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "sl-ars"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/sl-ars/StudentHunter",
+    "accountId": "6f935264-f6b6-4e12-bba1-aedeece03985"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 3
+}]]></component>
+  <component name="ProjectId" id="2vfkFAb94oLj8QG9MvmvO2xgX1c" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Django Server.studenthunter.executor": "Run",
-    "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "/Users/ars/source/repos/studenthunter",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/ars/source/StudentHunter/frontend",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -65,51 +247,32 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager">
-    <configuration name="studenthunter" type="Python.DjangoServer" factoryName="Django server">
-      <module name="studenthunter" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-        <env name="DJANGO_SETTINGS_MODULE" value="studenthunter.settings" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="launchJavascriptDebuger" value="false" />
-      <option name="port" value="8000" />
-      <option name="host" value="localhost" />
-      <option name="additionalOptions" value="" />
-      <option name="browserUrl" value="" />
-      <option name="runTestServer" value="false" />
-      <option name="runNoReload" value="false" />
-      <option name="useCustomRunCommand" value="false" />
-      <option name="customRunCommand" value="" />
-      <method v="2" />
-    </configuration>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\ars\source\StudentHunter\frontend" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\ars\source\StudentHunter\backend\studenthunter\users\urls" />
+      <recent name="C:\Users\ars\source\StudentHunter\backend" />
+    </key>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-7c0b70fcd90d-JavaScript-PY-242.21829.153" />
-        <option value="bundled-python-sdk-464836ebc622-b74155a9e76b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-242.21829.153" />
+        <option value="bundled-js-predefined-1d06a55b98c1-0b3e54e931b4-JavaScript-PY-241.18034.82" />
+        <option value="bundled-python-sdk-975db3bf15a3-2767605e8bc2-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-241.18034.82" />
       </set>
     </attachedChunks>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="782d2ad7-7bdf-4e1a-8f8f-5d2fb13f23f1" name="Changes" comment="" />
-      <created>1741684514753</created>
+      <changelist id="c2748419-d556-47f4-9548-eae381c2e84e" name="Changes" comment="" />
+      <created>1744543409805</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1741684514753</updated>
-      <workItem from="1741684534041" duration="2380000" />
-      <workItem from="1741687045200" duration="940000" />
+      <updated>1744543409805</updated>
+      <workItem from="1744543410848" duration="5367000" />
     </task>
     <servers />
   </component>

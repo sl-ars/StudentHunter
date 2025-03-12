@@ -1,0 +1,28 @@
+# Base image
+FROM node:22-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy the rest of the application
+COPY . .
+
+# Build the application for production
+RUN npm run build
+
+# Expose the port the app will run on
+EXPOSE 3000
+
+# Environment variables
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+ENV NODE_ENV production
+
+# Start the application
+CMD ["npm", "start"]
