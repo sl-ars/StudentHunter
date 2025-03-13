@@ -8,16 +8,16 @@ from rest_framework_simplejwt.views import (
 
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from rest_framework import permissions
+from rest_framework.permissions import AllowAny
 
 schema_view = get_schema_view(
     openapi.Info(
         title="StudentHunter API",
         default_version="v1",
-        description="Auto-generated documentation for StudentHunter backend",
+        description="API for StudentHunter Platform",
     ),
     public=True,
-    permission_classes=(permissions.AllowAny,),
+    permission_classes=(AllowAny,),
 )
 
 urlpatterns = [
@@ -27,7 +27,7 @@ urlpatterns = [
     path("api/auth/", include("users.urls.auth")),
 
     # user views (register, me)
-    path("api/users/", include("users.urls.default_urls")),
+    path("api/user/", include("users.urls.default_urls")),
 
 
     # Swagger / Redoc
