@@ -1,4 +1,8 @@
+from functools import wraps
+
+from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status, viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -37,6 +41,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 "data": {},
                 "message": str(e)
             }, status=status.HTTP_401_UNAUTHORIZED)
+
+
 
 
 
@@ -140,61 +146,138 @@ class LogoutView(APIView):
         })
 
 
+def require_role(expected_role: str):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, request, *args, **kwargs):
+            if request.user.role != expected_role:
+                return Response({
+                    "status": "error",
+                    "message": f"Access denied: '{expected_role}' role required.",
+                    "data": {}
+                }, status=status.HTTP_403_FORBIDDEN)
+            return func(self, request, *args, **kwargs)
+        return wrapper
+    return decorator
 class ProfileViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
-    def _get_profile_and_serializer(self, user):
-        match user.role:
-            case "student":
-                profile, _ = StudentProfile.objects.get_or_create(user=user)
-                serializer_class = StudentProfileSerializer
-            case "employer":
-                profile, _ = EmployerProfile.objects.get_or_create(user=user)
-                serializer_class = EmployerProfileSerializer
-            case "campus":
-                profile, _ = CampusProfile.objects.get_or_create(user=user)
-                serializer_class = CampusProfileSerializer
-            case _:
-                return None, None
-        return profile, serializer_class
+    @require_role("student")
+    @swagger_auto_schema(method='get', responses={200: StudentProfileSerializer})
+    @swagger_auto_schema(method='patch', request_body=StudentProfileSerializer, responses={200: StudentProfileSerializer})
+    @action(detail=False, methods=['get', 'patch'], url_path='profile/student')
+    def student(self, request):
+        profile, _ = StudentProfile.objects.get_or_create(user=request.user)
 
-    def retrieve(self, request):
-        profile, serializer_class = self._get_profile_and_serializer(request.user)
-        if not profile:
+        if request.method == "PATCH":
+            serializer = StudentProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "status": "success",
+                    "data": serializer.data,
+                    "message": "Student profile updated"
+                })
             return Response({
                 "status": "error",
                 "data": {},
-                "message": "No profile for this user"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "message": "Validation error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        data = serializer_class(profile).data
+        serializer = StudentProfileSerializer(profile)
         return Response({
             "status": "success",
-            "data": data,
-            "message": "Profile retrieved"
+            "data": serializer.data,
+            "message": "Student profile retrieved"
         })
 
-    def update(self, request):
-        profile, serializer_class = self._get_profile_and_serializer(request.user)
-        if not profile:
+    @require_role("employer")
+    @swagger_auto_schema(method='get', responses={200: EmployerProfileSerializer})
+    @swagger_auto_schema(method='patch', request_body=EmployerProfileSerializer, responses={200: EmployerProfileSerializer})
+    @action(detail=False, methods=['get', 'patch'], url_path='profile/employer')
+    def employer(self, request):
+        profile, _ = EmployerProfile.objects.get_or_create(user=request.user)
+
+        if request.method == "PATCH":
+            serializer = EmployerProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "status": "success",
+                    "data": serializer.data,
+                    "message": "Employer profile updated"
+                })
             return Response({
                 "status": "error",
                 "data": {},
-                "message": "No profile for this user"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "message": "Validation error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = serializer_class(profile, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                "status": "success",
-                "data": serializer.data,
-                "message": "Profile updated"
-            })
-
+        serializer = EmployerProfileSerializer(profile)
         return Response({
-            "status": "error",
-            "data": {},
-            "message": "Validation error",
-            "errors": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+            "status": "success",
+            "data": serializer.data,
+            "message": "Employer profile retrieved"
+        })
+
+    @require_role("campus")
+    @swagger_auto_schema(method='get', responses={200: CampusProfileSerializer})
+    @swagger_auto_schema(method='patch', request_body=CampusProfileSerializer, responses={200: CampusProfileSerializer})
+    @action(detail=False, methods=['get', 'patch'], url_path='profile/campus')
+    def campus(self, request):
+        profile, _ = CampusProfile.objects.get_or_create(user=request.user)
+
+        if request.method == "PATCH":
+            serializer = CampusProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "status": "success",
+                    "data": serializer.data,
+                    "message": "Campus profile updated"
+                })
+            return Response({
+                "status": "error",
+                "data": {},
+                "message": "Validation error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = CampusProfileSerializer(profile)
+        return Response({
+            "status": "success",
+            "data": serializer.data,
+            "message": "Campus profile retrieved"
+        })
+
+    @require_role("admin")
+    @swagger_auto_schema(method='get', responses={200: UserSerializer})
+    @swagger_auto_schema(method='patch', request_body=UserSerializer, responses={200: UserSerializer})
+    @action(detail=False, methods=['get', 'patch'], url_path='profile/admin')
+    def admin(self, request):
+        user = request.user
+
+        if request.method == "PATCH":
+            serializer = UserSerializer(user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "status": "success",
+                    "data": serializer.data,
+                    "message": "Admin profile updated"
+                })
+            return Response({
+                "status": "error",
+                "data": {},
+                "message": "Validation error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = UserSerializer(user)
+        return Response({
+            "status": "success",
+            "data": serializer.data,
+            "message": "Admin profile retrieved"
+        })

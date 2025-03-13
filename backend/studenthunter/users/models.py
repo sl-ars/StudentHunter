@@ -25,6 +25,7 @@ class CustomUser(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True, default=None)
     is_active = models.BooleanField(default=True)
+    location = models.CharField(max_length=255, blank=True, null=True, default="")
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

@@ -1,14 +1,28 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import CustomUser, Education, Experience, StudentProfile, EmployerProfile, CampusProfile
-from rest_framework_simplejwt.serializers import TokenVerifySerializer as BaseTokenVerifySerializer
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer as BaseTokenRefreshSerializer
+from rest_framework_simplejwt.serializers import (
+    TokenObtainPairSerializer,
+    TokenVerifySerializer as BaseTokenVerifySerializer,
+    TokenRefreshSerializer as BaseTokenRefreshSerializer
+)
+from .models import (
+    CustomUser,
+    Education,
+    Experience,
+    StudentProfile,
+    EmployerProfile,
+    CampusProfile
+)
 
+# === USER SERIALIZATION ===
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'name', 'role', 'avatar', 'university', 'company', 'created_at', 'last_login', 'is_active']
+        fields = [
+            'id', 'email', 'name', 'role', 'avatar',
+            'phone', 'location', 'university', 'company',
+            'created_at', 'last_login', 'is_active'
+        ]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -37,14 +51,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
-
 class TokenVerifySerializer(BaseTokenVerifySerializer):
     def validate(self, attrs):
         super().validate(attrs)
         return {
-            "isValid": True  # user будет добавлен в view
+            "isValid": True
         }
-
 
 
 class TokenRefreshSerializer(BaseTokenRefreshSerializer):
@@ -54,6 +66,7 @@ class TokenRefreshSerializer(BaseTokenRefreshSerializer):
             "access": data["access"]
         }
 
+# === PROFILE FIELD SERIALIZERS ===
 
 class EducationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -69,29 +82,66 @@ class ExperienceSerializer(serializers.ModelSerializer):
         read_only_fields = ["student"]
 
 
-class StudentProfileSerializer(serializers.ModelSerializer):
+# === BASE PROFILE SERIALIZER with user fields merged ===
+
+class BaseProfileSerializer(serializers.ModelSerializer):
+    #
+    name = serializers.CharField(source="user.name", required=False)
+    email = serializers.EmailField(source="user.email", required=False)
+    avatar = serializers.ImageField(source="user.avatar", required=False)
+    phone = serializers.CharField(source="user.phone", required=False)
+    location = serializers.CharField(source="user.location", required=False)
+    university = serializers.CharField(source="user.university", required=False)
+    company = serializers.CharField(source="user.company", required=False)
+
+    # readonly
+    id = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+    last_login = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+
+    def get_id(self, obj): return obj.user.id
+    def get_role(self, obj): return obj.user.role
+    def get_created_at(self, obj): return obj.user.created_at
+    def get_last_login(self, obj): return obj.user.last_login
+    def get_is_active(self, obj): return obj.user.is_active
+
+    def update_user_fields(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        for attr, value in user_data.items():
+            setattr(instance.user, attr, value)
+        instance.user.save()
+
+
+# === FULL PROFILE SERIALIZERS ===
+
+class StudentProfileSerializer(BaseProfileSerializer):
     education = EducationSerializer(many=True, required=False)
     experience = ExperienceSerializer(many=True, required=False)
 
     class Meta:
         model = StudentProfile
-        fields = ["bio", "skills", "resume", "education", "experience"]
+        fields = [
+            "id", "name", "email", "role", "avatar", "phone", "location",
+            "university", "company", "created_at", "last_login", "is_active",
+            "bio", "skills", "resume", "education", "experience"
+        ]
 
     def update(self, instance, validated_data):
+        self.update_user_fields(instance, validated_data)
+
         education_data = validated_data.pop("education", [])
         experience_data = validated_data.pop("experience", [])
 
-        # Обновление простых полей
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Обновление education
         instance.education.all().delete()
         for edu in education_data:
             Education.objects.create(student=instance, **edu)
 
-        # Обновление experience
         instance.experience.all().delete()
         for exp in experience_data:
             Experience.objects.create(student=instance, **exp)
@@ -99,15 +149,39 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         return instance
 
 
-class EmployerProfileSerializer(serializers.ModelSerializer):
+class EmployerProfileSerializer(BaseProfileSerializer):
     class Meta:
         model = EmployerProfile
-        fields = "__all__"
-        read_only_fields = ["user"]
+        fields = [
+            "id", "name", "email", "role", "avatar", "phone", "location",
+            "university", "company", "created_at", "last_login", "is_active",
+            "company_name", "industry", "website", "description"
+        ]
+
+    def update(self, instance, validated_data):
+        self.update_user_fields(instance, validated_data)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
-class CampusProfileSerializer(serializers.ModelSerializer):
+
+class CampusProfileSerializer(BaseProfileSerializer):
     class Meta:
         model = CampusProfile
-        fields = "__all__"
-        read_only_fields = ["user"]
+        fields = [
+            "id", "name", "email", "role", "avatar", "phone", "location",
+            "university", "company", "created_at", "last_login", "is_active",
+            "university", "department", "position"
+        ]
+
+    def update(self, instance, validated_data):
+        self.update_user_fields(instance, validated_data)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+

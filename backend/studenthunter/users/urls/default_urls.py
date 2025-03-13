@@ -7,14 +7,8 @@ router = DefaultRouter()
 
 
 router.register(r"register", RegisterViewSet, basename="register")
-
-
-profile_view = ProfileViewSet.as_view({
-    "get": "retrieve",
-    "put": "update",
-})
+router.register("", ProfileViewSet, basename="profile-router")
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("profile/", profile_view, name="profile"),
 ]
