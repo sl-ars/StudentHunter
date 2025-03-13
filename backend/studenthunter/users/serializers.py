@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import CustomUser
+from .models import CustomUser, Education, Experience, StudentProfile, EmployerProfile, CampusProfile
 from rest_framework_simplejwt.serializers import TokenVerifySerializer as BaseTokenVerifySerializer
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer as BaseTokenRefreshSerializer
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,7 +42,7 @@ class TokenVerifySerializer(BaseTokenVerifySerializer):
     def validate(self, attrs):
         super().validate(attrs)
         return {
-            "detail": "Token is valid"
+            "isValid": True  # user будет добавлен в view
         }
 
 
@@ -52,3 +53,61 @@ class TokenRefreshSerializer(BaseTokenRefreshSerializer):
         return {
             "access": data["access"]
         }
+
+
+class EducationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Education
+        fields = "__all__"
+        read_only_fields = ["student"]
+
+
+class ExperienceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Experience
+        fields = "__all__"
+        read_only_fields = ["student"]
+
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    education = EducationSerializer(many=True, required=False)
+    experience = ExperienceSerializer(many=True, required=False)
+
+    class Meta:
+        model = StudentProfile
+        fields = ["bio", "skills", "resume", "education", "experience"]
+
+    def update(self, instance, validated_data):
+        education_data = validated_data.pop("education", [])
+        experience_data = validated_data.pop("experience", [])
+
+        # Обновление простых полей
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Обновление education
+        instance.education.all().delete()
+        for edu in education_data:
+            Education.objects.create(student=instance, **edu)
+
+        # Обновление experience
+        instance.experience.all().delete()
+        for exp in experience_data:
+            Experience.objects.create(student=instance, **exp)
+
+        return instance
+
+
+class EmployerProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployerProfile
+        fields = "__all__"
+        read_only_fields = ["user"]
+
+
+class CampusProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CampusProfile
+        fields = "__all__"
+        read_only_fields = ["user"]
