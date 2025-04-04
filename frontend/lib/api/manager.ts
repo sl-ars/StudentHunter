@@ -92,7 +92,7 @@ export const managerApi = {
 
   // Analytics
   getAnalytics: async (period = "month") => {
-    const response = await apiClient.get<ApiResponse<any>>("/manager/analytics/", { params: { period } })
+    const response = await apiClient.get<ApiResponse<any>>("/api/analytics/manager/", { params: { period } })
     return response.data
   },
 

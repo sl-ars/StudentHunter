@@ -2,6 +2,7 @@ import apiClient from "./client"
 import type { ApiResponse } from "./client"
 import type { Job } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
+import { mockJobs } from "@/lib/mock-data/jobs"
 
 // Combine all interfaces from both files
 export interface JobFilters {
@@ -119,18 +120,31 @@ export const getJobs = async (
 // Get job by ID
 export const getJobById = async (id: string): Promise<Job | null> => {
   try {
-    const response = await apiClient.get<ApiResponse<Job>>(`/jobs/${id}/`)
-    return response.data.data
-  } catch (error: any) {
-    console.error(`Error fetching job with ID ${id}:`, error)
-
-    // Fallback to mock data if API call fails or if mock is enabled
+    console.log("getJobById called with ID:", id, "Type:", typeof id)
+    const response = await apiClient.get(`/jobs/${id}/`)
+    console.log("API response:", response)
+    
     if (isMockEnabled()) {
-      const { mockJobs } = await import("@/lib/mock-data/jobs")
-      const job = mockJobs.find((job) => job.id === id)
-      return job || null
+      console.log("Mock mode enabled, checking mock data")
+      const mockJob = mockJobs.find((job: Job) => job.id === id)
+      console.log("Found mock job:", mockJob)
+      return mockJob || null
     }
-
+    
+    // Check if response has the expected structure
+    if (response.data && response.data.data) {
+      return response.data.data
+    }
+    
+    return response.data
+  } catch (error) {
+    console.error("Error in getJobById:", error)
+    if (isMockEnabled()) {
+      console.log("Falling back to mock data")
+      const mockJob = mockJobs.find((job: Job) => job.id === id)
+      console.log("Found mock job:", mockJob)
+      return mockJob || null
+    }
     return null
   }
 }
@@ -168,7 +182,7 @@ export const getSimilarJobs = async (jobId: string): Promise<Job[]> => {
 // Save a job
 export const saveJob = async (jobId: string): Promise<ApiResponse<void>> => {
   try {
-    await apiClient.post<ApiResponse<void>>(`/jobs/${jobId}/save/`)
+ const response = await apiClient.get<ApiResponse<Job[]>>(`/jobs/${jobId}/similar/`)
     return {
       status: "success",
       message: "Job saved successfully",

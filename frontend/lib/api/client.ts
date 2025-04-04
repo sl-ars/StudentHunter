@@ -1,5 +1,4 @@
-import axios from "axios"
-import type { AxiosRequestConfig } from "axios"
+import axios, { InternalAxiosRequestConfig } from "axios"
 import { isMockEnabled } from "../utils/config"
 import Cookies from "js-cookie"
 import { getMockResponse } from "./mock-service"
@@ -21,9 +20,9 @@ const apiClient = axios.create({
   timeout: 10000, // 10 seconds
 })
 
-// Add a request interceptor to include the JWT token in requests
+// Add a request interceptor to include the JWT token in requests and handle mock data
 apiClient.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     // Check if we're in a browser environment
     if (typeof window !== "undefined") {
       // Get token from localStorage or cookie
@@ -35,30 +34,15 @@ apiClient.interceptors.request.use(
       }
     }
 
-    return config
-  },
-  (error) => Promise.reject(error),
-)
-
-// Add a response interceptor to handle mock data
-apiClient.interceptors.request.use(
-  (config) => {
     // If mock data is enabled, intercept the request and return mock data
     if (isMockEnabled()) {
+      const mockResponse = getMockResponse(config)
       return Promise.resolve({
         ...config,
-        adapter: (config: AxiosRequestConfig) => {
-          const mockResponse = getMockResponse(config)
-          return Promise.resolve({
-            data: mockResponse,
-            status: 200,
-            statusText: "OK",
-            headers: {},
-            config,
-          })
-        },
+        data: mockResponse,
       })
     }
+
     return config
   },
   (error) => Promise.reject(error),
