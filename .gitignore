@@ -57,3 +57,6 @@ docker-compose.override.yaml
 *.njsproj
 *.sln
 *.sw?
+# --- 🌐 Front Ignore ---
+node_modules/
+.next/
