@@ -118,7 +118,7 @@ export default function Header() {
                   </Link>
                 )}
 
-                <Link href={`/${user.role}`} className="md:inline-flex hidden">
+                <Link href={user.role === "employer" ? "/employer" : `/${user.role}`} className="md:inline-flex hidden">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -263,7 +263,7 @@ export default function Header() {
                     Career Quest
                   </Button>
                 </Link>
-                <Link href={`/${user.role}`} onClick={() => setIsMenuOpen(false)}>
+                <Link href={user.role === "employer" ? "/employer" : `/${user.role}`} onClick={() => setIsMenuOpen(false)}>
                   <Button
                     variant="outline"
                     className="w-full justify-start text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"

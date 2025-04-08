@@ -53,43 +53,54 @@ export function JobSearch() {
           page: currentPage,
         }
 
-        // Check if mock data is enabled
-        const mockEnabled = process.env.NEXT_PUBLIC_MOCK_ENABLED === "true"
-
-        let data
-        if (mockEnabled) {
-          // Use mock data
-          const response = await import("@/lib/mock-data/jobs").then((module) => {
-            // Convert mockJobs object to array
-            const jobsArray = Object.values(module.mockJobs)
-
-            // Simulate API response format
-            return {
-              jobs: jobsArray,
+        const response = await getAll(filters)
+        console.log("Processed data:", response.data)
+        
+        // Check if response.data exists and has the expected structure
+        if (response && response.data) {
+          // Handle the API response structure
+          if (response.data.results) {
+            // Format the data to match our component's expected structure
+            setJobsData({
+              jobs: response.data.results,
               currentPage: currentPage,
-              totalPages: Math.ceil(jobsArray.length / 10),
-              totalJobs: jobsArray.length,
-            }
-          })
-          data = response
-        } else {
-          // Use real API
-          const response = await getAll(filters)
-          data = {
-            jobs: response.data.jobs,
-            currentPage: response.data.currentPage,
-            totalPages: response.data.totalPages,
-            totalJobs: response.data.totalCount,
+              totalPages: Math.ceil(response.data.count / 10),
+              totalJobs: response.data.count
+            })
+          } else if (response.data.jobs) {
+            // If the API already returns the data in our expected format
+            setJobsData(response.data)
+          } else {
+            // Fallback for unexpected data structure
+            setJobsData({
+              jobs: [],
+              currentPage: 1,
+              totalPages: 0,
+              totalJobs: 0
+            })
           }
+        } else {
+          // Handle empty response
+          setJobsData({
+            jobs: [],
+            currentPage: 1,
+            totalPages: 0,
+            totalJobs: 0
+          })
         }
-
-        setJobsData(data)
       } catch (error) {
-        console.error("Failed to load jobs:", error)
+        console.error("Error loading jobs:", error)
         toast({
           title: "Error",
-          description: "Failed to load jobs. Please try again.",
+          description: "Failed to load jobs. Please try again later.",
           variant: "destructive",
+        })
+        // Set empty data on error
+        setJobsData({
+          jobs: [],
+          currentPage: 1,
+          totalPages: 0,
+          totalJobs: 0
         })
       } finally {
         setIsLoading(false)
@@ -97,35 +108,25 @@ export function JobSearch() {
     }
 
     loadJobs()
-  }, [activeFilters, currentPage, isAuthenticated, toast])
+  }, [activeFilters, currentPage, toast])
 
-  // Handle search form submission
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setActiveFilters({
       ...activeFilters,
       search: searchQuery,
-      location,
     })
     setCurrentPage(1)
   }
 
-  // Clear a specific filter
   const clearFilter = (filterName: keyof typeof activeFilters) => {
     setActiveFilters({
       ...activeFilters,
       [filterName]: "",
     })
-
-    // Also reset the corresponding input
-    if (filterName === "search") setSearchQuery("")
-    if (filterName === "location") setLocation("")
-    if (filterName === "jobType") setJobType("")
-
     setCurrentPage(1)
   }
 
-  // Clear all filters
   const clearAllFilters = () => {
     setActiveFilters({
       search: "",
@@ -139,114 +140,110 @@ export function JobSearch() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7] dark:bg-[#1C1C1E]">
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold mb-3 text-[#007AFF] dark:text-[#0A84FF]">Find Your Dream Job</h1>
-          <p className="text-base text-[#8E8E93] dark:text-[#AEAEB2] max-w-2xl mx-auto">
-            Discover opportunities that match your skills and career goals
-          </p>
-        </div>
-
-        {/* Search Form - iOS Style */}
-        <form onSubmit={handleSearchSubmit} className="bg-white dark:bg-[#2C2C2E] rounded-xl shadow-sm mb-6 p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-grow relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#8E8E93]" size={18} />
-              <Input
-                type="text"
-                placeholder="Search jobs"
-                className="pl-10 bg-[#F2F2F7] dark:bg-[#3A3A3C] border-0 rounded-xl h-12 text-[#1C1C1E] dark:text-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex-grow relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#8E8E93]" size={18} />
-              <Input
-                type="text"
-                placeholder="Location"
-                className="pl-10 bg-[#F2F2F7] dark:bg-[#3A3A3C] border-0 rounded-xl h-12 text-[#1C1C1E] dark:text-white"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-            <Button
-              type="submit"
-              className="h-12 px-6 bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] dark:hover:bg-[#0A84FF]/90 text-white rounded-xl"
+    <div className="space-y-6">
+      {/* Search Form */}
+      <form onSubmit={handleSearchSubmit} className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search jobs..."
+              className="pl-10 h-12 rounded-xl"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="relative flex-1">
+            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Location"
+              className="pl-10 h-12 rounded-xl"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+          <div className="relative flex-1">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+            <select
+              className="w-full h-12 pl-10 pr-4 rounded-xl border border-input bg-background"
+              value={jobType}
+              onChange={(e) => setJobType(e.target.value)}
             >
-              Search
-            </Button>
+              <option value="">All Types</option>
+              <option value="full-time">Full Time</option>
+              <option value="part-time">Part Time</option>
+              <option value="contract">Contract</option>
+              <option value="internship">Internship</option>
+            </select>
           </div>
-        </form>
+          <Button type="submit" className="h-12 px-6 rounded-xl">
+            Search
+          </Button>
+        </div>
+      </form>
 
-        {/* Active Filters */}
-        {(activeFilters.search || activeFilters.location || activeFilters.jobType) && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            <div className="bg-[#E5F6FF] dark:bg-[#0A84FF]/20 text-[#007AFF] dark:text-[#0A84FF] px-3 py-1 rounded-full text-sm flex items-center">
-              <Filter size={14} className="mr-1" /> Filters:
+      {/* Active Filters */}
+      {(activeFilters.search || activeFilters.location || activeFilters.jobType) && (
+        <div className="flex flex-wrap gap-2">
+          {activeFilters.search && (
+            <div className="flex items-center bg-muted px-3 py-1 rounded-full text-sm">
+              <span className="mr-2">Search: {activeFilters.search}</span>
+              <button
+                onClick={() => clearFilter("search")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
+          )}
+          {activeFilters.location && (
+            <div className="flex items-center bg-muted px-3 py-1 rounded-full text-sm">
+              <span className="mr-2">Location: {activeFilters.location}</span>
+              <button
+                onClick={() => clearFilter("location")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {activeFilters.jobType && (
+            <div className="flex items-center bg-muted px-3 py-1 rounded-full text-sm">
+              <span className="mr-2">Type: {activeFilters.jobType}</span>
+              <button
+                onClick={() => clearFilter("jobType")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAllFilters}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Clear All
+          </Button>
+        </div>
+      )}
 
-            {activeFilters.search && (
-              <div className="bg-[#F2F2F7] dark:bg-[#3A3A3C] px-3 py-1 rounded-full text-sm flex items-center text-[#1C1C1E] dark:text-white">
-                Search: {activeFilters.search}
-                <button
-                  onClick={() => clearFilter("search")}
-                  className="ml-1 text-[#8E8E93] hover:text-[#FF3B30] dark:hover:text-[#FF453A]"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            {activeFilters.location && (
-              <div className="bg-[#F2F2F7] dark:bg-[#3A3A3C] px-3 py-1 rounded-full text-sm flex items-center text-[#1C1C1E] dark:text-white">
-                Location: {activeFilters.location}
-                <button
-                  onClick={() => clearFilter("location")}
-                  className="ml-1 text-[#8E8E93] hover:text-[#FF3B30] dark:hover:text-[#FF453A]"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            {activeFilters.jobType && (
-              <div className="bg-[#F2F2F7] dark:bg-[#3A3A3C] px-3 py-1 rounded-full text-sm flex items-center text-[#1C1C1E] dark:text-white">
-                Job Type: {activeFilters.jobType}
-                <button
-                  onClick={() => clearFilter("jobType")}
-                  className="ml-1 text-[#8E8E93] hover:text-[#FF3B30] dark:hover:text-[#FF453A]"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            <button onClick={clearAllFilters} className="text-[#FF3B30] dark:text-[#FF453A] text-sm hover:underline">
-              Clear All
-            </button>
-          </div>
-        )}
-
+      {/* Results */}
+      <div className="space-y-4">
         {/* Loading State */}
         {isLoading && (
           <div className="space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="bg-white dark:bg-[#2C2C2E] rounded-xl shadow-sm animate-pulse p-4">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 rounded-lg bg-[#F2F2F7] dark:bg-[#3A3A3C] mr-3"></div>
-                  <div className="space-y-2 flex-1">
-                    <div className="h-5 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded w-3/4"></div>
-                    <div className="h-4 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded w-1/2"></div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white dark:bg-[#2C2C2E] rounded-xl shadow-sm p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="h-12 w-12 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-xl"></div>
+                  <div className="flex-1">
+                    <div className="h-6 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full w-3/4 mb-2"></div>
+                    <div className="h-4 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full w-1/2"></div>
                   </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  <div className="h-4 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded"></div>
-                  <div className="h-4 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded"></div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <div className="h-8 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full w-24"></div>
                   <div className="h-8 bg-[#F2F2F7] dark:bg-[#3A3A3C] rounded-full w-24"></div>
                 </div>
               </div>
@@ -255,7 +252,7 @@ export function JobSearch() {
         )}
 
         {/* No Results */}
-        {!isLoading && jobsData?.jobs.length === 0 && (
+        {!isLoading && jobsData && jobsData.jobs && jobsData.jobs.length === 0 && (
           <div className="bg-white dark:bg-[#2C2C2E] rounded-xl shadow-sm p-8 text-center">
             <h3 className="text-xl font-semibold text-[#1C1C1E] dark:text-white mb-2">No jobs found</h3>
             <p className="text-[#8E8E93] mb-4">Try adjusting your search filters or try a different search term.</p>
@@ -263,13 +260,13 @@ export function JobSearch() {
               onClick={clearAllFilters}
               className="bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] dark:hover:bg-[#0A84FF]/90 text-white rounded-xl"
             >
-              Clear All Filters
+              Clear Filters
             </Button>
           </div>
         )}
 
-        {/* Job Cards */}
-        {!isLoading && jobsData?.jobs.length > 0 && (
+        {/* Job List */}
+        {!isLoading && jobsData && jobsData.jobs && jobsData.jobs.length > 0 && (
           <div className="space-y-4">
             {jobsData.jobs.map((job) => (
               <JobCard key={job.id} job={job} />
@@ -277,57 +274,37 @@ export function JobSearch() {
           </div>
         )}
 
-        {/* Login Prompt for Unregistered Users */}
-        {!isAuthenticated && (
-          <div className="bg-[#E5F6FF] dark:bg-[#0A84FF]/10 rounded-xl p-5 mt-6">
-            <h3 className="text-lg font-semibold text-[#007AFF] dark:text-[#0A84FF] mb-2">
-              Want to see more job opportunities?
-            </h3>
-            <p className="text-[#1C1C1E] dark:text-white mb-4">
-              Sign in or create an account to access all available jobs and apply directly.
-            </p>
-            <div className="flex gap-3">
-              <Link href="/login">
-                <Button className="bg-[#007AFF] dark:bg-[#0A84FF] hover:bg-[#0071E3] dark:hover:bg-[#0A84FF]/90 text-white rounded-xl">
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/register">
-                <Button
-                  variant="outline"
-                  className="border-[#007AFF] dark:border-[#0A84FF] text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF] dark:hover:bg-[#0A84FF] hover:text-white rounded-xl"
-                >
-                  Create Account
-                </Button>
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Pagination - Only show for authenticated users */}
-        {!isLoading && isAuthenticated && jobsData && jobsData.totalPages > 1 && (
+        {/* Pagination */}
+        {!isLoading && jobsData && jobsData.totalPages > 1 && (
           <div className="flex justify-center mt-8">
-            <Button
-              variant="outline"
-              className="mr-2 rounded-xl border border-[#007AFF] dark:border-[#0A84FF] text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF] dark:hover:bg-[#0A84FF] hover:text-white transition-colors"
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <div className="flex items-center mx-2">
-              <span className="text-[#8E8E93] dark:text-[#AEAEB2]">
-                Page {jobsData.currentPage} of {jobsData.totalPages}
-              </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <div className="flex items-center gap-2">
+                {Array.from({ length: jobsData.totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    onClick={() => setCurrentPage(page)}
+                    className="w-10 h-10 p-0"
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, jobsData.totalPages))}
+                disabled={currentPage === jobsData.totalPages}
+              >
+                Next
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              className="rounded-xl border border-[#007AFF] dark:border-[#0A84FF] text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF] dark:hover:bg-[#0A84FF] hover:text-white transition-colors"
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, jobsData.totalPages))}
-              disabled={currentPage === jobsData.totalPages}
-            >
-              Next
-            </Button>
           </div>
         )}
       </div>
