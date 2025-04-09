@@ -12,11 +12,11 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Bell, Lock } from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 import { isMockEnabled } from "@/lib/utils/config"
 
-interface ManagerSettings {
+interface EmployerSettings {
   emailNotifications: boolean
   pushNotifications: boolean
   smsNotifications: boolean
@@ -31,7 +31,7 @@ export default function SettingsPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [settings, setSettings] = useState<ManagerSettings>({
+  const [settings, setSettings] = useState<EmployerSettings>({
     emailNotifications: true,
     pushNotifications: false,
     smsNotifications: false,
@@ -47,7 +47,7 @@ export default function SettingsPage() {
       try {
         setLoading(true)
         // In a real app, you would fetch settings from an API
-        const response = await managerApi.getSettings()
+        const response = await employerApi.getSettings()
 
         setSettings({
           emailNotifications: response.emailNotifications || true,
@@ -79,7 +79,7 @@ export default function SettingsPage() {
     fetchSettings()
   }, [user, router])
 
-  const handleChange = (field: keyof ManagerSettings, value: any) => {
+  const handleChange = (field: keyof EmployerSettings, value: any) => {
     setSettings((prev) => ({
       ...prev,
       [field]: value,
@@ -89,7 +89,7 @@ export default function SettingsPage() {
   const handleSaveNotifications = async () => {
     setSaving(true)
     try {
-      await managerApi.updateSettings({
+      await employerApi.updateSettings({
         emailNotifications: settings.emailNotifications,
         pushNotifications: settings.pushNotifications,
         smsNotifications: settings.smsNotifications,
@@ -126,7 +126,7 @@ export default function SettingsPage() {
 
     setSaving(true)
     try {
-      await managerApi.changePassword({
+      await employerApi.changePassword({
         currentPassword: settings.currentPassword,
         newPassword: settings.newPassword,
       })
@@ -158,7 +158,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute roles="manager">
+      <ProtectedRoute roles="employer">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-3xl font-bold mb-8">Account Settings</h1>
           <div className="text-center py-8">Loading settings...</div>
@@ -168,7 +168,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">Account Settings</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

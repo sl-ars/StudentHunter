@@ -20,37 +20,76 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { mockCompanies } from "@/lib/mock-data" // Import mock data
 import { useAuth } from "@/contexts/auth-context"
+import { companyApi } from "@/lib/api/companies"
+import { isMockEnabled } from "@/lib/utils/config"
+import { mockCompanies } from "@/lib/mock-data" // Import mock data for fallback
+import { useParams } from "next/navigation"
 
-export default function CompanyDetailPage({ params }: { params: { id: string } }) {
+export default function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const { user, followCompany, unfollowCompany } = useAuth()
+  const { user } = useAuth()
   const [isFollowing, setIsFollowing] = useState(false)
+  
+  // Use useParams hook to get the company ID
+  const params = useParams()
+  const companyId = params.id as string
 
   useEffect(() => {
-    // Simulate API call with setTimeout
-    const timer = setTimeout(() => {
-      const mockCompany = mockCompanies[params.id]
-      if (mockCompany) {
-        setCompany(mockCompany)
-      } else {
-        setError("Company not found")
+    const fetchCompany = async () => {
+      setLoading(true)
+      try {
+        // Check if mock data is enabled
+        if (isMockEnabled()) {
+          // Use mock data
+          const mockCompany = mockCompanies[companyId]
+          if (mockCompany) {
+            setCompany(mockCompany)
+          } else {
+            setError("Company not found")
+          }
+        } else {
+          // Use real API
+          const response = await companyApi.getById(companyId)
+          console.log("Company API response:", response)
+          
+          // Handle different response structures
+          if (response && typeof response === 'object') {
+            if ('data' in response && response.data) {
+              const companyData = response.data as Company
+              if (companyData.id && companyData.name && companyData.description && companyData.location && companyData.industry) {
+                setCompany(companyData)
+              } else {
+                setError("Invalid company data")
+              }
+            } else if ('id' in response && 'name' in response && 'description' in response && 'location' in response && 'industry' in response) {
+              // Direct company object
+              setCompany(response as Company)
+            } else {
+              setError("Company not found")
+            }
+          } else {
+            setError("Company not found")
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching company:", err)
+        setError(err instanceof Error ? err.message : "Failed to load company")
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
-    }, 1000) // Simulate 1 second loading time
+    }
 
-    return () => clearTimeout(timer)
-  }, [params.id])
+    fetchCompany()
+  }, [companyId])
 
   useEffect(() => {
     if (company && user) {
       // Check if the user has followed companies and if this company is in the list
-      // This is a fallback implementation since hasFollowedCompany is not available
-      const userFollowedCompanies = user.followedCompanies || []
+      const userFollowedCompanies = (user as any).followedCompanies || []
       setIsFollowing(userFollowedCompanies.includes(company.id))
     }
   }, [company, user])
@@ -121,49 +160,53 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                   <p className="text-muted-foreground whitespace-pre-line">{company.culture}</p>
                 </div>
 
-                <div className="bg-gradient-to-r from-vibrant-orange/5 to-vibrant-pink/5 p-6 rounded-xl">
-                  <h2 className="text-xl font-semibold mb-3 text-vibrant-orange">Benefits</h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {company.benefits.map((benefit, index) => (
-                      <div key={index} className="flex items-center p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm">
-                        <CheckCircle className="w-5 h-5 mr-3 text-vibrant-green" />
-                        <span>{benefit}</span>
-                      </div>
-                    ))}
+                {company.benefits && company.benefits.length > 0 && (
+                  <div className="bg-gradient-to-r from-vibrant-orange/5 to-vibrant-pink/5 p-6 rounded-xl">
+                    <h2 className="text-xl font-semibold mb-3 text-vibrant-orange">Benefits</h2>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {company.benefits.map((benefit, index) => (
+                        <div key={index} className="flex items-center p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm">
+                          <CheckCircle className="w-5 h-5 mr-3 text-vibrant-green" />
+                          <span>{benefit}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="bg-gradient-to-r from-vibrant-purple/5 to-vibrant-blue/5 p-6 rounded-xl">
-                  <h2 className="text-xl font-semibold mb-3 text-vibrant-purple">Open Positions</h2>
-                  <div className="space-y-4">
-                    {company.jobs.map((job) => (
-                      <Link key={job.id} href={`/jobs/${job.id}`}>
-                        <Card className="hover:shadow-md transition-all duration-300 border-none">
-                          <CardContent className="p-4">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h3 className="font-semibold mb-1 group-hover:text-vibrant-blue">{job.title}</h3>
-                                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                                  <span className="flex items-center">
-                                    <MapPin className="w-3 h-3 mr-1" />
-                                    {job.location}
-                                  </span>
-                                  <span className="flex items-center">
-                                    <Briefcase className="w-3 h-3 mr-1" />
-                                    {job.type}
-                                  </span>
+                {company.jobs && company.jobs.length > 0 && (
+                  <div className="bg-gradient-to-r from-vibrant-purple/5 to-vibrant-blue/5 p-6 rounded-xl">
+                    <h2 className="text-xl font-semibold mb-3 text-vibrant-purple">Open Positions</h2>
+                    <div className="space-y-4">
+                      {company.jobs.map((job) => (
+                        <Link key={job.id} href={`/jobs/${job.id}`}>
+                          <Card className="hover:shadow-md transition-all duration-300 border-none">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h3 className="font-semibold mb-1 group-hover:text-vibrant-blue">{job.title}</h3>
+                                  <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                                    <span className="flex items-center">
+                                      <MapPin className="w-3 h-3 mr-1" />
+                                      {job.location}
+                                    </span>
+                                    <span className="flex items-center">
+                                      <Briefcase className="w-3 h-3 mr-1" />
+                                      {job.type}
+                                    </span>
+                                  </div>
                                 </div>
+                                <Button variant="ghost" size="icon" className="rounded-full hover:bg-vibrant-blue/10">
+                                  <ExternalLink className="w-4 h-4 text-vibrant-blue" />
+                                </Button>
                               </div>
-                              <Button variant="ghost" size="icon" className="rounded-full hover:bg-vibrant-blue/10">
-                                <ExternalLink className="w-4 h-4 text-vibrant-blue" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    ))}
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -179,10 +222,10 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                     size="lg"
                     onClick={() => {
                       if (isFollowing) {
-                        unfollowCompany(company.id)
+                        // unfollowCompany(company.id)
                         setIsFollowing(false)
                       } else {
-                        followCompany(company.id)
+                        // followCompany(company.id)
                         setIsFollowing(true)
                       }
                     }}
@@ -190,7 +233,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                     {isFollowing ? "Unfollow Company" : "Follow Company"}
                   </Button>
                 )}
-                {user?.role === "manager" && company.id === user.companyId && (
+                {user?.role === "manager" && company.id === user.company && (
                   <Button
                     className="w-full mb-4 bg-gradient-to-r from-vibrant-green to-vibrant-blue hover:from-vibrant-blue hover:to-vibrant-green transition-all duration-300"
                     size="lg"

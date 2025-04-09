@@ -10,17 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { UserPlus } from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 
-export default function ManagerRegisterPage() {
+export default function EmployerRegisterPage() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     firstName: "",
     lastName: "",
-    role: "student", // Default to student for managers
+    role: "student", // Default to student for employers
     password: "",
   })
   const { user } = useAuth()
@@ -35,11 +35,11 @@ export default function ManagerRegisterPage() {
         email: formData.email,
         name: `${formData.firstName} ${formData.lastName}`,
         password: formData.password,
-        companyId: user?.companyId, // Associate with the manager's company
+        companyId: user?.companyId, // Associate with the employer's company
       }
 
-      // Use the managerApi to create the student
-      await managerApi.createStudent(userData)
+      // Use the employerApi to create the student
+      await employerApi.createStudent(userData)
 
       toast({
         title: "Student account created successfully",
@@ -67,7 +67,7 @@ export default function ManagerRegisterPage() {
   }
 
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="container mx-auto px-4 py-12">
         <Card className="max-w-md mx-auto border-none shadow-lg overflow-hidden">
           <div className="h-2 bg-gradient-to-r from-vibrant-green to-vibrant-blue w-full"></div>
