@@ -12,14 +12,16 @@ from rest_framework_simplejwt.tokens import UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from drf_yasg import openapi
+from rest_framework.parsers import MultiPartParser, FormParser
 
-from .models import CampusProfile, EmployerProfile, StudentProfile
+from .models import CampusProfile, EmployerProfile, StudentProfile, Resume
 from .serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
     UserSerializer,
     TokenRefreshSerializer, TokenVerifySerializer, CampusProfileSerializer, EmployerProfileSerializer,
-    StudentProfileSerializer
+    StudentProfileSerializer, ResumeSerializer
 )
 
 
@@ -170,6 +172,16 @@ class ProfileViewSet(viewsets.ViewSet):
         profile, _ = StudentProfile.objects.get_or_create(user=request.user)
 
         if request.method == "PATCH":
+            # Handle avatar upload separately if it exists
+            if 'avatar' in request.FILES:
+                request.user.avatar = request.FILES['avatar']
+                request.user.save()
+                # Remove avatar from request data to avoid double processing
+                request.data._mutable = True
+                if 'avatar' in request.data:
+                    del request.data['avatar']
+                request.data._mutable = False
+
             serializer = StudentProfileSerializer(profile, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -200,6 +212,16 @@ class ProfileViewSet(viewsets.ViewSet):
         profile, _ = EmployerProfile.objects.get_or_create(user=request.user)
 
         if request.method == "PATCH":
+            # Handle avatar upload separately if it exists
+            if 'avatar' in request.FILES:
+                request.user.avatar = request.FILES['avatar']
+                request.user.save()
+                # Remove avatar from request data to avoid double processing
+                request.data._mutable = True
+                if 'avatar' in request.data:
+                    del request.data['avatar']
+                request.data._mutable = False
+
             serializer = EmployerProfileSerializer(profile, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -230,6 +252,16 @@ class ProfileViewSet(viewsets.ViewSet):
         profile, _ = CampusProfile.objects.get_or_create(user=request.user)
 
         if request.method == "PATCH":
+            # Handle avatar upload separately if it exists
+            if 'avatar' in request.FILES:
+                request.user.avatar = request.FILES['avatar']
+                request.user.save()
+                # Remove avatar from request data to avoid double processing
+                request.data._mutable = True
+                if 'avatar' in request.data:
+                    del request.data['avatar']
+                request.data._mutable = False
+
             serializer = CampusProfileSerializer(profile, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -281,3 +313,153 @@ class ProfileViewSet(viewsets.ViewSet):
             "data": serializer.data,
             "message": "Admin profile retrieved"
         })
+
+class ResumeViewSet(viewsets.ModelViewSet):
+    serializer_class = ResumeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete']
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        return Resume.objects.filter(student__user=self.request.user)
+
+    def perform_create(self, serializer):
+        student_profile = self.request.user.student_profile
+        serializer.save(student=student_profile)
+
+    def get_permissions(self):
+        if self.action in ['list', 'create', 'destroy']:
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+    @swagger_auto_schema(
+        operation_description="List all resumes for the authenticated student",
+        responses={
+            200: openapi.Response(
+                description="List of resumes",
+                schema=ResumeSerializer(many=True)
+            )
+        }
+    )
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            "status": "success",
+            "data": serializer.data,
+            "message": "Resumes retrieved successfully"
+        })
+
+    @swagger_auto_schema(
+        operation_description="Upload a new resume",
+        manual_parameters=[
+            openapi.Parameter(
+                name='file',
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_FILE,
+                required=True,
+                description='Resume file to upload'
+            )
+        ],
+        responses={
+            201: openapi.Response(
+                description="Resume uploaded successfully",
+                schema=ResumeSerializer
+            ),
+            400: openapi.Response(
+                description="Validation error",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'status': openapi.Schema(type=openapi.TYPE_STRING),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING),
+                        'errors': openapi.Schema(type=openapi.TYPE_OBJECT)
+                    }
+                )
+            )
+        }
+    )
+    def create(self, request, *args, **kwargs):
+        if 'file' not in request.FILES:
+            return Response({
+                "status": "error",
+                "data": {},
+                "message": "No file provided",
+                "errors": {"file": ["This field is required."]}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(data={'file': request.FILES['file']})
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            return Response({
+                "status": "success",
+                "data": serializer.data,
+                "message": "Resume uploaded successfully"
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            "status": "error",
+            "data": {},
+            "message": "Validation error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_description="Delete a resume",
+        responses={
+            200: openapi.Response(
+                description="Resume deleted successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'status': openapi.Schema(type=openapi.TYPE_STRING),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({
+            "status": "success",
+            "data": {},
+            "message": "Resume deleted successfully"
+        }, status=status.HTTP_200_OK)
+
+    @swagger_auto_schema(
+        operation_description="Get a signed URL for downloading a resume",
+        responses={
+            200: openapi.Response(
+                description="Signed URL generated successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'status': openapi.Schema(type=openapi.TYPE_STRING),
+                        'data': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'url': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        ),
+                        'message': openapi.Schema(type=openapi.TYPE_STRING)
+                    }
+                )
+            )
+        }
+    )
+    @action(detail=True, methods=['get'])
+    def get_url(self, request, pk=None):
+        resume = self.get_object()
+        url = resume.get_resume_url()
+        if url:
+            return Response({
+                "status": "success",
+                "data": {"url": url},
+                "message": "Signed URL generated successfully"
+            })
+        return Response({
+            "status": "error",
+            "data": {},
+            "message": "Failed to generate signed URL"
+        }, status=status.HTTP_400_BAD_REQUEST)

@@ -22,6 +22,7 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/core/', include('core.urls')),
 
     # JWT & logout
     path("api/auth/", include("users.urls.auth")),
