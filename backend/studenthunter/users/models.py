@@ -22,6 +22,7 @@ class CustomUser(AbstractUser):
 
     university = models.CharField(max_length=255, blank=True, null=True, default="")
     company = models.CharField(max_length=255, blank=True, null=True, default="")
+    company_id = models.CharField(max_length=255, blank=True, null=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True, default=None)
     is_active = models.BooleanField(default=True)

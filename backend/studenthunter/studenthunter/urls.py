@@ -28,7 +28,11 @@ urlpatterns = [
 
     # user views (register, me)
     path("api/user/", include("users.urls.default_urls")),
-
+    path('api/', include('companies.urls')),
+    path('api/', include('jobs.urls')),
+    path('api/', include('resources.urls')),
+    path('api/', include('applications.urls')),
+    path('api/', include('analytics.urls')),
 
     # Swagger / Redoc
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

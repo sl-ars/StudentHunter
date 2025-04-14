@@ -12,6 +12,7 @@ from .models import (
     EmployerProfile,
     CampusProfile
 )
+from companies.models import Company  # Import Company from the correct app
 
 # === USER SERIALIZATION ===
 
@@ -21,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'name', 'role', 'avatar',
             'phone', 'location', 'university', 'company',
-            'created_at', 'last_login', 'is_active'
+            'company_id', 'created_at', 'last_login', 'is_active'
         ]
 
 
@@ -53,10 +54,29 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class TokenVerifySerializer(BaseTokenVerifySerializer):
     def validate(self, attrs):
-        super().validate(attrs)
-        return {
-            "isValid": True
-        }
+        data = super().validate(attrs)
+        try:
+            # Get user from token
+            from rest_framework_simplejwt.tokens import AccessToken
+            token = AccessToken(attrs["token"])
+            user = CustomUser.objects.get(id=token.payload["user_id"])
+            return {
+                "status": "success",
+                "data": {
+                    "isValid": True,
+                    "user": UserSerializer(user).data
+                },
+                "message": "Token is valid"
+            }
+        except (CustomUser.DoesNotExist, KeyError):
+            return {
+                "status": "error",
+                "data": {
+                    "isValid": False,
+                    "user": None
+                },
+                "message": "Invalid token"
+            }
 
 
 class TokenRefreshSerializer(BaseTokenRefreshSerializer):
@@ -161,11 +181,42 @@ class EmployerProfileSerializer(BaseProfileSerializer):
     def update(self, instance, validated_data):
         self.update_user_fields(instance, validated_data)
 
+        # Get or create Company model
+        company_data = {
+            'name': validated_data.get('company_name', instance.company_name),
+            'industry': validated_data.get('industry', instance.industry),
+            'website': validated_data.get('website', instance.website),
+            'description': validated_data.get('description', instance.description),
+            'location': validated_data.get('location', instance.user.location) or '',
+        }
+        
+        # Try to get existing company by ID first
+        company = None
+        if instance.user.company_id:
+            try:
+                company = Company.objects.get(id=instance.user.company_id)
+                # Update company data
+                for key, value in company_data.items():
+                    setattr(company, key, value)
+                company.save()
+            except Company.DoesNotExist:
+                pass
+        
+        # If no existing company, create a new one
+        if not company:
+            company = Company.objects.create(**company_data)
+        
+        # Update user's company fields
+        instance.user.company = company.name
+        instance.user.company_id = company.id
+        instance.user.save()
+
+        # Update profile fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        return instance
 
+        return instance
 
 
 class CampusProfileSerializer(BaseProfileSerializer):
