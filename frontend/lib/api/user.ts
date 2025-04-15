@@ -1,9 +1,19 @@
 import apiClient from "./client"
 import type { ApiResponse } from "./client"
-import type { User, UserProfile } from "@/lib/types"
+import type { User, UserProfile, Education, Experience } from "@/lib/types"
+import { USER_ROLES, UserRole } from "@/lib/constants/roles"
+import { apiClient as apiClientTypes } from "./api-client"
 
 interface AuthResponse {
   user: User
+  token: string
+}
+
+function getProfileUrlByRole(role: UserRole): string {
+  if (!Object.values(USER_ROLES).includes(role)) {
+    throw new Error(`Unsupported role: ${role}`)
+  }
+  return `/user/profile/${role}/`
 }
 
 export const userApi = {
@@ -105,38 +115,64 @@ export const userApi = {
     }
   },
 
-  getProfile: async (): Promise<ApiResponse<UserProfile>> => {
-    try {
-      const response = await apiClient.get<ApiResponse<UserProfile>>("/user/profile/")
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to get profile",
-        data: null as any,
+  getProfile: async (role: UserRole): Promise<ApiResponse<UserProfile>> => {
+      try {
+        const url = getProfileUrlByRole(role)
+        const response = await apiClient.get<ApiResponse<UserProfile>>(url)
+        return response.data
+      } catch (error: any) {
+        return {
+          status: "error",
+          message: error.message || "Failed to get profile",
+          data: null as any,
+        }
       }
-    }
-  },
+    },
 
-  updateProfile: async (data: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> => {
-    try {
-      const response = await apiClient.put<ApiResponse<UserProfile>>("/user/profile/", data)
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to update profile",
-        data: null as any,
+   updateProfile: async (
+      role: UserRole,
+      data: Partial<UserProfile>
+    ): Promise<ApiResponse<UserProfile>> => {
+      try {
+        const url = getProfileUrlByRole(role)
+        const response = await apiClient.patch<ApiResponse<UserProfile>>(url, data)
+        return response.data
+      } catch (error: any) {
+        return {
+          status: "error",
+          message: error.message || "Failed to update profile",
+          data: null as any,
+        }
       }
-    }
-  },
+    },
+
+  uploadAvatar: async (
+      role: UserRole,
+      formData: FormData
+    ): Promise<ApiResponse<UserProfile>> => {
+      try {
+        const url = getProfileUrlByRole(role)
+        const response = await apiClient.patch<ApiResponse<UserProfile>>(url, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        })
+        return response.data
+      } catch (error: any) {
+        return {
+          status: "error",
+          message: error.message || "Failed to upload avatar",
+          data: null as any,
+        }
+      }
+    },
 
   uploadResume: async (file: File): Promise<ApiResponse<{ id: string; url: string }>> => {
     try {
       const formData = new FormData()
-      formData.append("resume", file)
+      formData.append("file", file)
 
-      const response = await apiClient.post<ApiResponse<{ id: string; url: string }>>("/user/resume", formData, {
+      const response = await apiClient.post<ApiResponse<{ id: string; url: string }>>("/user/resumes/", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -153,10 +189,7 @@ export const userApi = {
 
   getResumes: async (): Promise<ApiResponse<{ id: string; name: string; url: string; created_at: string }[]>> => {
     try {
-      const response =
-        await apiClient.get<ApiResponse<{ id: string; name: string; url: string; created_at: string }[]>>(
-          "/user/resumes",
-        )
+      const response = await apiClient.get<ApiResponse<{ id: string; name: string; url: string; created_at: string }[]>>("/user/resumes/")
       return response.data
     } catch (error: any) {
       return {
@@ -169,7 +202,7 @@ export const userApi = {
 
   deleteResume: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/user/resume/${id}`)
+      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/user/resumes/${id}/`)
       return response.data
     } catch (error: any) {
       return {
@@ -261,5 +294,37 @@ export const userApi = {
         data: { companies: [] },
       }
     }
+  },
+
+  // Education operations
+  addEducation: async (role: UserRole, education: Omit<Education, "id">) => {
+    const response = await apiClient.post<ApiResponse<UserProfile>>(
+      `/api/${role}/profile/education/`,
+      education
+    )
+    return response.data.data
+  },
+
+  removeEducation: async (role: UserRole, educationId: string) => {
+    const response = await apiClient.delete<ApiResponse<UserProfile>>(
+      `/api/${role}/profile/education/${educationId}/`
+    )
+    return response.data.data
+  },
+
+  // Experience operations
+  addExperience: async (role: UserRole, experience: Omit<Experience, "id">) => {
+    const response = await apiClient.post<ApiResponse<UserProfile>>(
+      `/api/${role}/profile/experience/`,
+      experience
+    )
+    return response.data.data
+  },
+
+  removeExperience: async (role: UserRole, experienceId: string) => {
+    const response = await apiClient.delete<ApiResponse<UserProfile>>(
+      `/api/${role}/profile/experience/${experienceId}/`
+    )
+    return response.data.data
   },
 }

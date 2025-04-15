@@ -37,10 +37,13 @@ import { getUserResumes, deleteResume } from "@/app/actions/resume-actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import type { UserProfile } from "@/lib/types"
+import type { UserProfile, Experience, Education, Achievement } from "@/lib/types"
+import {USER_ROLES} from "@/lib/constants/roles";
+import { AvatarUpload } from "@/components/avatar-upload"
+import { ResumeList } from "@/components/resume-list"
 
 export default function StudentProfilePage() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [profileData, setProfileData] = useState<UserProfile | null>(null)
@@ -56,13 +59,17 @@ export default function StudentProfilePage() {
   const [missingFields, setMissingFields] = useState<string[]>([])
 
   useEffect(() => {
-    if (!user) router.push("/login")
+    if (!isLoading && !user) {
+      router.push("/login")
+    }
 
     const fetchProfile = async () => {
       try {
         setLoading(true)
-        const response = await userApi.getProfile()
-        setProfileData(response)
+        const response = await userApi.getProfile(USER_ROLES.STUDENT)
+
+        const profileData = response.data
+        setProfileData(profileData)
 
         // Calculate profile completion and identify missing fields
         const requiredFields = [
@@ -83,25 +90,25 @@ export default function StudentProfilePage() {
 
         requiredFields.forEach((field) => {
           if (field.name === "education") {
-            if (response?.education?.length > 0 && response.education[0]?.university) {
+            if (profileData?.education && profileData?.education.length > 0 && profileData?.education[0]?.university) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "skills") {
-            if (response?.skills?.length > 0) {
+            if (profileData?.skills && profileData.skills.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "experience") {
-            if (response?.experience?.length > 0 && response.experience[0]?.company) {
+            if (profileData?.experience && profileData.experience.length > 0 && profileData.experience[0]?.company) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "achievements") {
-            if (response?.achievements?.length > 0) {
+            if (profileData?.achievements && profileData.achievements.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
@@ -114,7 +121,7 @@ export default function StudentProfilePage() {
               missing.push(field.label)
             }
           } else {
-            if (response?.[field.name]) {
+            if (profileData?.[field.name]) {
               completedCount++
             } else {
               missing.push(field.label)
@@ -166,14 +173,21 @@ export default function StudentProfilePage() {
       fetchProfile()
       fetchResumes()
     }
-  }, [user, router, toast])
+  }, [user, router, isLoading, toast])
 
-  const handleSaveProfile = async () => {
+  const handleInputChange = (field: keyof UserProfile, value: any) => {
+    setProfileData((prev) => {
+      if (!prev) return null
+      return { ...prev, [field]: value }
+    })
+  }
+
+  const handleProfileUpdate = async () => {
     if (!profileData) return
 
     try {
       setSaving(true)
-      await userApi.updateProfile(profileData)
+      await userApi.updateProfile(USER_ROLES.STUDENT, profileData)
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -188,14 +202,6 @@ export default function StudentProfilePage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleInputChange = (field: string, value: string) => {
-    if (!profileData) return
-    setProfileData({
-      ...profileData,
-      [field]: value,
-    })
   }
 
   const handleResumeUploadComplete = (url: string) => {
@@ -368,7 +374,7 @@ export default function StudentProfilePage() {
   if (!user) return null
 
   return (
-    <ProtectedRoute roles="student">
+    <ProtectedRoute roles={[USER_ROLES.STUDENT]}>
       <div className="min-h-screen bg-gradient-to-b from-background via-muted/50 to-background">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 text-center bg-gradient-to-r from-vibrant-blue to-vibrant-purple bg-clip-text text-transparent">
@@ -386,49 +392,13 @@ export default function StudentProfilePage() {
                 <Card className="border-none shadow-lg overflow-hidden">
                   <div className="h-32 bg-gradient-to-r from-vibrant-blue to-vibrant-purple"></div>
                   <CardContent className="-mt-16 relative">
-                    <div className="flex flex-col items-center">
-                      <Avatar className="w-32 h-32 border-4 border-background">
-                        <AvatarImage src={profileData?.avatar || "/placeholder.svg"} />
-                        <AvatarFallback>
-                          <User className="w-16 h-16" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <h2 className="mt-4 text-2xl font-bold">{profileData?.name}</h2>
-                      <p className="text-muted-foreground">Student</p>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      <div className="flex items-center text-muted-foreground">
-                        <Mail className="w-4 h-4 mr-2" />
-                        {profileData?.email}
-                      </div>
-                      <div className="flex items-center text-muted-foreground">
-                        <Phone className="w-4 h-4 mr-2" />
-                        {profileData?.phone || "Add your phone number"}
-                      </div>
-                      <div className="flex items-center text-muted-foreground">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        {profileData?.location || "Add your location"}
-                      </div>
-                    </div>
-                    <div className="mt-6">
-                      <h3 className="font-semibold mb-2">Profile Completion</h3>
-                      <Progress value={profileCompletion} className="h-2" />
-                      <p className="text-sm text-muted-foreground mt-2">{profileCompletion.toFixed(0)}% Complete</p>
-
-                      {missingFields.length > 0 && (
-                        <Alert className="mt-4 bg-amber-50">
-                          <AlertCircle className="h-4 w-4 text-amber-500" />
-                          <AlertDescription>
-                            <p className="text-sm font-medium text-amber-800">Complete your profile by adding:</p>
-                            <ul className="text-xs text-amber-700 mt-1 list-disc list-inside">
-                              {missingFields.map((field, index) => (
-                                <li key={index}>{field}</li>
-                              ))}
-                            </ul>
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
+                    <AvatarUpload
+                      currentAvatar={profileData?.avatar}
+                      onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
+                      role={USER_ROLES.STUDENT}
+                    />
+                    <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
+                    <p className="text-muted-foreground text-center">Student</p>
                   </CardContent>
                 </Card>
 
@@ -530,6 +500,7 @@ export default function StudentProfilePage() {
                     <TabsTrigger value="personal">Personal Info</TabsTrigger>
                     <TabsTrigger value="education">Education</TabsTrigger>
                     <TabsTrigger value="experience">Experience</TabsTrigger>
+                    <TabsTrigger value="resumes">Resumes</TabsTrigger>
                   </TabsList>
 
                   {/* Personal Information Tab */}
@@ -559,6 +530,7 @@ export default function StudentProfilePage() {
                               type="email"
                               value={profileData?.email || ""}
                               onChange={(e) => handleInputChange("email", e.target.value)}
+                              disabled={true}
                             />
                           </div>
                           <div>
@@ -568,6 +540,7 @@ export default function StudentProfilePage() {
                               type="tel"
                               value={profileData?.phone || ""}
                               onChange={(e) => handleInputChange("phone", e.target.value)}
+                              placeholder="+1 (555) 555-5555"
                             />
                           </div>
                           <div>
@@ -963,6 +936,31 @@ export default function StudentProfilePage() {
                       </CardContent>
                     </Card>
                   </TabsContent>
+
+                  {/* Resumes Tab */}
+                  <TabsContent value="resumes" className="space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Upload Resume</h3>
+                      <ResumeUpload onUploadComplete={handleResumeUploadComplete} />
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Your Resumes</h3>
+                      {loadingResumes ? (
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        </div>
+                      ) : (
+                        <ResumeList
+                          resumes={resumes}
+                          onDelete={(id) => {
+                            setResumes(resumes.filter((resume) => resume.id !== id))
+                            handleDeleteResume(id)
+                          }}
+                        />
+                      )}
+                    </div>
+                  </TabsContent>
                 </Tabs>
 
                 <div className="flex justify-end space-x-4">
@@ -971,7 +969,7 @@ export default function StudentProfilePage() {
                   </Button>
                   <Button
                     className="bg-gradient-to-r from-vibrant-blue to-vibrant-purple hover:from-vibrant-purple hover:to-vibrant-blue transition-all duration-300"
-                    onClick={handleSaveProfile}
+                    onClick={handleProfileUpdate}
                     disabled={saving}
                   >
                     {saving ? (

@@ -10,13 +10,16 @@ from .models import (
     Experience,
     StudentProfile,
     EmployerProfile,
-    CampusProfile
+    CampusProfile,
+    Resume
 )
 from companies.models import Company  # Import Company from the correct app
 
 # === USER SERIALIZATION ===
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
         fields = [
@@ -24,6 +27,11 @@ class UserSerializer(serializers.ModelSerializer):
             'phone', 'location', 'university', 'company',
             'company_id', 'created_at', 'last_login', 'is_active'
         ]
+
+    def get_avatar(self, obj):
+        if obj.avatar:
+            return obj.avatar.url
+        return None
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -89,30 +97,99 @@ class TokenRefreshSerializer(BaseTokenRefreshSerializer):
 # === PROFILE FIELD SERIALIZERS ===
 
 class EducationSerializer(serializers.ModelSerializer):
+    start_date = serializers.DateField(
+        input_formats=['%Y-%m', '%Y-%m-%d'],
+        required=True
+    )
+    end_date = serializers.DateField(
+        input_formats=['%Y-%m', '%Y-%m-%d'],
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = Education
         fields = "__all__"
         read_only_fields = ["student"]
 
+    def to_internal_value(self, data):
+        """Convert YYYY-MM to YYYY-MM-DD before validation"""
+        if isinstance(data, dict):
+            if 'start_date' in data and isinstance(data['start_date'], str):
+                if len(data['start_date']) == 7:  # YYYY-MM format
+                    data['start_date'] = f"{data['start_date']}-01"
+            
+            if 'end_date' in data and isinstance(data['end_date'], str):
+                if len(data['end_date']) == 7:  # YYYY-MM format
+                    data['end_date'] = f"{data['end_date']}-01"
+        
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        """Convert YYYY-MM-DD back to YYYY-MM for frontend"""
+        ret = super().to_representation(instance)
+        
+        if ret.get('start_date'):
+            ret['start_date'] = ret['start_date'][:7]  # Keep only YYYY-MM
+            
+        if ret.get('end_date'):
+            ret['end_date'] = ret['end_date'][:7]  # Keep only YYYY-MM
+            
+        return ret
+
 
 class ExperienceSerializer(serializers.ModelSerializer):
+    start_date = serializers.DateField(
+        input_formats=['%Y-%m', '%Y-%m-%d'],
+        required=True
+    )
+    end_date = serializers.DateField(
+        input_formats=['%Y-%m', '%Y-%m-%d'],
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = Experience
         fields = "__all__"
         read_only_fields = ["student"]
 
+    def to_internal_value(self, data):
+        """Convert YYYY-MM to YYYY-MM-DD before validation"""
+        if isinstance(data, dict):
+            if 'start_date' in data and isinstance(data['start_date'], str):
+                if len(data['start_date']) == 7:  # YYYY-MM format
+                    data['start_date'] = f"{data['start_date']}-01"
+            
+            if 'end_date' in data and isinstance(data['end_date'], str):
+                if len(data['end_date']) == 7:  # YYYY-MM format
+                    data['end_date'] = f"{data['end_date']}-01"
+        
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        """Convert YYYY-MM-DD back to YYYY-MM for frontend"""
+        ret = super().to_representation(instance)
+        
+        if ret.get('start_date'):
+            ret['start_date'] = ret['start_date'][:7]  # Keep only YYYY-MM
+            
+        if ret.get('end_date'):
+            ret['end_date'] = ret['end_date'][:7]  # Keep only YYYY-MM
+            
+        return ret
+
 
 # === BASE PROFILE SERIALIZER with user fields merged ===
 
 class BaseProfileSerializer(serializers.ModelSerializer):
-    #
-    name = serializers.CharField(source="user.name", required=False)
-    email = serializers.EmailField(source="user.email", required=False)
-    avatar = serializers.ImageField(source="user.avatar", required=False)
-    phone = serializers.CharField(source="user.phone", required=False)
-    location = serializers.CharField(source="user.location", required=False)
-    university = serializers.CharField(source="user.university", required=False)
-    company = serializers.CharField(source="user.company", required=False)
+    name = serializers.CharField(source="user.name", required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(source="user.email", required=False, allow_blank=True, allow_null=True)
+    avatar = serializers.ImageField(source="user.avatar", required=False, allow_null=True)
+    phone = serializers.CharField(source="user.phone", required=False, allow_blank=True, allow_null=True)
+    location = serializers.CharField(source="user.location", required=False, allow_blank=True, allow_null=True)
+    university = serializers.CharField(source="user.university", required=False, allow_blank=True, allow_null=True)
+    company = serializers.CharField(source="user.company", required=False, allow_blank=True, allow_null=True)
 
     # readonly
     id = serializers.SerializerMethodField()
@@ -127,10 +204,17 @@ class BaseProfileSerializer(serializers.ModelSerializer):
     def get_last_login(self, obj): return obj.user.last_login
     def get_is_active(self, obj): return obj.user.is_active
 
+    def validate(self, data):
+        # Remove avatar from validation if it's already been handled
+        if 'user' in data and 'avatar' in data['user']:
+            del data['user']['avatar']
+        return data
+
     def update_user_fields(self, instance, validated_data):
         user_data = validated_data.pop("user", {})
         for attr, value in user_data.items():
-            setattr(instance.user, attr, value)
+            if value is not None:  # Only update if value is provided
+                setattr(instance.user, attr, value)
         instance.user.save()
 
 
@@ -139,6 +223,13 @@ class BaseProfileSerializer(serializers.ModelSerializer):
 class StudentProfileSerializer(BaseProfileSerializer):
     education = EducationSerializer(many=True, required=False)
     experience = ExperienceSerializer(many=True, required=False)
+    skills = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
+    bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = StudentProfile
@@ -148,23 +239,42 @@ class StudentProfileSerializer(BaseProfileSerializer):
             "bio", "skills", "resume", "education", "experience"
         ]
 
+    def to_representation(self, instance):
+        """Ensure skills is always a list in the response"""
+        ret = super().to_representation(instance)
+        if ret.get('skills') is None:
+            ret['skills'] = []
+        return ret
+
+    def to_internal_value(self, data):
+        """Ensure skills is properly validated and converted"""
+        ret = super().to_internal_value(data)
+        if 'skills' in ret and ret['skills'] is None:
+            ret['skills'] = []
+        return ret
+
     def update(self, instance, validated_data):
         self.update_user_fields(instance, validated_data)
 
-        education_data = validated_data.pop("education", [])
-        experience_data = validated_data.pop("experience", [])
+        # Only update education if provided
+        if 'education' in validated_data:
+            education_data = validated_data.pop("education")
+            instance.education.all().delete()
+            for edu in education_data:
+                Education.objects.create(student=instance, **edu)
 
+        # Only update experience if provided
+        if 'experience' in validated_data:
+            experience_data = validated_data.pop("experience")
+            instance.experience.all().delete()
+            for exp in experience_data:
+                Experience.objects.create(student=instance, **exp)
+
+        # Update remaining fields
         for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+            if value is not None:  # Only update if value is provided
+                setattr(instance, attr, value)
         instance.save()
-
-        instance.education.all().delete()
-        for edu in education_data:
-            Education.objects.create(student=instance, **edu)
-
-        instance.experience.all().delete()
-        for exp in experience_data:
-            Experience.objects.create(student=instance, **exp)
 
         return instance
 
@@ -235,4 +345,37 @@ class CampusProfileSerializer(BaseProfileSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+
+class ResumeSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Resume
+        fields = ['id', 'name', 'url', 'created_at', 'file']
+        read_only_fields = ['id', 'url', 'created_at', 'name']
+
+    def get_url(self, obj):
+        return obj.get_resume_url()
+
+    def validate_file(self, value):
+        if not value:
+            raise serializers.ValidationError("No file was submitted.")
+        
+        # Check file size (5MB max)
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("File size must be less than 5MB")
+        
+        # Check file type
+        valid_types = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
+        if value.content_type not in valid_types:
+            raise serializers.ValidationError(
+                "File type not supported. Please upload a PDF, DOC, or DOCX file."
+            )
+        
+        return value
 
