@@ -1,10 +1,11 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { authApi } from "@/lib/api/auth"
-import type { User, UserRole } from "@/lib/types"
+import { User, UserRole } from "@/lib/types"
+import { toast } from "sonner"
 
 interface AuthContextType {
   user: User | null
@@ -13,53 +14,102 @@ interface AuthContextType {
   login: (email: string, password: string, redirectPath?: string) => Promise<boolean>
   logout: () => void
   register: (userData: any, redirectPath?: string) => Promise<boolean>
-  hasRole: (roles: UserRole | UserRole[]) => boolean
+  hasRole: (roles: string | string[]) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
- useEffect(() => {
+  const isUserRole = (role: string): role is UserRole => {
+    return role === 'admin' || role === 'employer' || role === 'campus' || role === 'student'
+  }
+
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem("access_token")
-      if (token) {
-        const response = await authApi.verifyToken(token)
+      setIsLoading(true)
+      const token = localStorage.getItem('access_token')
+      console.log('Checking auth with token:', token ? 'exists' : 'missing')
+      
+      if (!token) {
+        setUser(null)
+        if (pathname !== '/login') {
+          router.push('/login')
+        }
+        return
+      }
 
-        if (response.data.isValid && response.data.user) {
-          setUser(response.data.user)
-        } else {
-          localStorage.removeItem("access_token")
-          localStorage.removeItem("refresh_token")
+      const response = await authApi.verifyToken(token)
+      console.log('Auth verification response:', response)
+      
+      if (response.status === 'success' && response.data?.isValid && response.data?.user) {
+        const userData = response.data.user
+        const role = userData.role
+        if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
+          console.error('Invalid role:', role)
+          setUser(null)
+          localStorage.removeItem('access_token')
+          router.push('/login')
+          return
+        }
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          avatar: userData.avatar,
+          company: userData.company,
+          company_id: userData.company_id,
+          createdAt: new Date().toISOString(),
+          isActive: true
+        })
+
+        // Redirect to appropriate page if on login
+        if (pathname === '/login') {
+          redirectBasedOnRole(userData.role)
+        }
+      } else {
+        setUser(null)
+        localStorage.removeItem('access_token')
+        if (pathname !== '/login') {
+          router.push('/login')
         }
       }
     } catch (error) {
-      console.error("Auth check error:", error)
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("refresh_token")
+      console.error('Auth check error:', error)
+      setUser(null)
+      localStorage.removeItem('access_token')
+      if (pathname !== '/login') {
+        router.push('/login')
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
-  checkAuth()
-}, [])
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
   const login = async (email: string, password: string, redirectPath?: string): Promise<boolean> => {
     try {
       const response = await authApi.login({ email, password })
-
+      
       if (response.access) {
-        localStorage.setItem("access_token", response.access)
-        localStorage.setItem("refresh_token", response.refresh)
-        setUser(response.user)
-
+        localStorage.setItem('access_token', response.access)
+        localStorage.setItem('refresh_token', response.refresh)
+        
+        setUser({
+          ...response.user,
+          createdAt: new Date().toISOString(),
+          isActive: true
+        })
+        
         const redirectTo = redirectPath || sessionStorage.getItem("authRedirect")
         if (redirectTo) {
           router.push(redirectTo)
@@ -73,22 +123,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return false
     } catch (error) {
-      console.error("Login error:", error)
+      console.error('Login error:', error)
       return false
     }
   }
 
   const logout = () => {
-    localStorage.removeItem("access_token")
-    localStorage.removeItem("refresh_token")
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     setUser(null)
-    router.push("/login")
+    router.push('/login')
   }
 
   const register = async (userData: any, redirectPath?: string): Promise<boolean> => {
     try {
       const response = await authApi.register(userData)
-
+      
       if (response.success) {
         const loginResponse = await authApi.login({
           email: userData.email,
@@ -96,10 +146,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
 
         if (loginResponse.access) {
-          localStorage.setItem("access_token", loginResponse.access)
-          localStorage.setItem("refresh_token", loginResponse.refresh)
-          setUser(loginResponse.user)
-
+          localStorage.setItem('access_token', loginResponse.access)
+          localStorage.setItem('refresh_token', loginResponse.refresh)
+          
+          setUser({
+            ...loginResponse.user,
+            createdAt: new Date().toISOString(),
+            isActive: true
+          })
+          
           const redirectTo = redirectPath || sessionStorage.getItem("authRedirect")
           if (redirectTo) {
             router.push(redirectTo)
@@ -114,14 +169,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return false
     } catch (error) {
-      console.error("Registration error:", error)
+      console.error('Registration error:', error)
       return false
     }
   }
 
-  const hasRole = (roles: UserRole | UserRole[]): boolean => {
+  const hasRole = (roles: string | string[]): boolean => {
     if (!user) return false
-    return Array.isArray(roles) ? roles.includes(user.role as UserRole) : user.role === roles
+    return Array.isArray(roles) ? roles.includes(user.role) : user.role === roles
   }
 
   const redirectBasedOnRole = (role: string) => {
@@ -129,9 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       case "admin":
         router.push("/admin")
         break
-      case "manager":
       case "employer":
-        router.push("/manager")
+        router.push("/employer")
         break
       case "campus":
         router.push("/campus")
@@ -165,10 +219,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }

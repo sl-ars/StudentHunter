@@ -3,7 +3,6 @@ import type { AxiosResponse } from "axios"
 import apiClient from "./client"
 import type { ApiResponse } from "./client"
 import type { Company } from "@/lib/types"
-import type { JobListResponse } from "./jobs"
 import { isMockEnabled } from "@/lib/utils/config"
 
 // Define the standard API response format for axios direct calls
@@ -88,10 +87,10 @@ export const companiesApi = {
   },
 
   // Company jobs
-  getCompanyJobs: async (id: string): Promise<AxiosResponse<AxiosApiResponse<JobListResponse>>> => {
-    const response = await axios.get<AxiosApiResponse<JobListResponse>>(`/companies/${id}/jobs/`)
-    return response
-  },
+  // getCompanyJobs: async (id: string): Promise<AxiosResponse<AxiosApiResponse<JobListResponse>>> => {
+  //   const response = await axios.get<AxiosApiResponse<JobListResponse>>(`/companies/${id}/jobs/`)
+  //   return response
+  // },
 
   // Company stats
   getCompanyStats: async (
@@ -122,27 +121,54 @@ export const companiesApi = {
 export const companyApi = {
   getAll: async (filters: CompanyFilters = {}): Promise<ApiResponse<CompaniesResponse>> => {
     try {
-      if (isMockEnabled()) {
-        const mockData = await getMockCompanies(filters, true)
+      const pageSize = filters.page_size ?? 20;
+      const response = await apiClient.get<ApiResponse<CompanyListResponse>>("/companies", { params: filters })
+
+      // Check if the response has the expected structure
+      if (response.data && response.data.data && Array.isArray(response.data.data.results)) {
+        const { count, next, previous, results } = response.data.data
+
         return {
           status: "success",
-          message: "Companies retrieved successfully (mocked)",
-          data: mockData,
+          message: "Companies retrieved successfully",
+          data: {
+            companies: results,
+            currentPage: filters.page || 1,
+            totalPages: Math.ceil(count / pageSize),
+            totalCount: count,
+          },
+        }
+      } else if (response.data && typeof response.data === 'object' && 'results' in response.data) {
+        // Handle direct API response format (from backend)
+        const directResponse = response.data as unknown as CompanyListResponse
+        const { count, next, previous, results } = directResponse
+
+        return {
+          status: "success",
+          message: "Companies retrieved successfully",
+          data: {
+            companies: results,
+            currentPage: filters.page || 1,
+            totalPages: Math.ceil(count / pageSize),
+            totalCount: count,
+          },
+        }
+      } else {
+        // Handle unexpected response structure
+        console.error("Unexpected API response structure:", response)
+        return {
+          status: "error",
+          message: "Invalid response format from server",
+          data: {
+            companies: [],
+            currentPage: 1,
+            totalPages: 0,
+            totalCount: 0,
+          },
         }
       }
-
-      const response = await apiClient.get<ApiResponse<CompanyListResponse>>("/companies", { params: filters })
-      return {
-        status: "success",
-        message: "Companies retrieved successfully",
-        data: {
-          companies: response.data.data.companies,
-          currentPage: response.data.data.currentPage,
-          totalPages: response.data.data.totalPages,
-          totalCount: response.data.data.totalCount,
-        },
-      }
     } catch (error: any) {
+      console.error("Error fetching companies:", error)
       return {
         status: "error",
         message: error.message || "Failed to retrieve companies",
@@ -244,18 +270,18 @@ export const companyApi = {
   },
 
   // Company jobs
-  getCompanyJobs: async (id: string): Promise<ApiResponse<JobListResponse>> => {
-    try {
-      const response = await apiClient.get<ApiResponse<JobListResponse>>(`/companies/${id}/jobs`)
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to retrieve company jobs",
-        data: null as any,
-      }
-    }
-  },
+  // getCompanyJobs: async (id: string): Promise<ApiResponse<JobListResponse>> => {
+  //   try {
+  //     const response = await apiClient.get<ApiResponse<JobListResponse>>(`/companies/${id}/jobs`)
+  //     return response.data
+  //   } catch (error: any) {
+  //     return {
+  //       status: "error",
+  //       message: error.message || "Failed to retrieve company jobs",
+  //       data: null as any,
+  //     }
+  //   }
+  // },
 
   // Company stats
   getCompanyStats: async (
@@ -291,55 +317,4 @@ export const companyApi = {
       }
     }
   },
-}
-
-export async function getMockCompanies(
-  filters: CompanyFilters = {},
-  isAuthenticated = false,
-): Promise<CompaniesResponse> {
-  // In a real app, this would be an API call
-  // For now, we'll simulate with a delay
-  await new Promise((resolve) => setTimeout(resolve, 800))
-
-  const { mockCompanies } = await import("@/lib/mock-data/companies")
-
-  // Filter companies based on search criteria
-  let filteredCompanies = [...mockCompanies]
-
-  if (filters.search) {
-    const searchLower = filters.search.toLowerCase()
-    filteredCompanies = filteredCompanies.filter(
-      (company) =>
-        company.name.toLowerCase().includes(searchLower) ||
-        company.industry.toLowerCase().includes(searchLower) ||
-        company.description.toLowerCase().includes(searchLower),
-    )
-  }
-
-  if (filters.location) {
-    const locationLower = filters.location.toLowerCase()
-    filteredCompanies = filteredCompanies.filter((company) => company.location.toLowerCase().includes(locationLower))
-  }
-
-  if (filters.industry) {
-    const industryLower = filters.industry.toLowerCase()
-    filteredCompanies = filteredCompanies.filter((company) => company.industry.toLowerCase() === industryLower)
-  }
-
-  // Pagination
-  const page = filters.page || 1
-  const limit = isAuthenticated ? filters.limit || 6 : 3 // Limit to 3 for non-authenticated users
-  const totalCount = filteredCompanies.length
-  const totalPages = Math.ceil(totalCount / limit)
-  const startIndex = (page - 1) * limit
-  const endIndex = startIndex + limit
-
-  const paginatedCompanies = filteredCompanies.slice(startIndex, endIndex)
-
-  return {
-    companies: paginatedCompanies,
-    currentPage: page,
-    totalPages,
-    totalCount,
-  }
 }

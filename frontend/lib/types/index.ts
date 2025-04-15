@@ -1,13 +1,16 @@
 import type React from "react"
 // User and Authentication Types
+export type UserRole = "admin" | "employer" | "campus" | "student"
+
 export interface User {
   id: string
   name: string
   email: string
-  role: string
+  role: UserRole | string
   avatar?: string
   university?: string
   company?: string
+  company_id?: string
   createdAt: string
   lastLogin?: string
   isActive: boolean
@@ -83,6 +86,7 @@ export interface Job {
   title: string
   company: string
   companyId: string
+  company_id?: string
   location: string
   type: string
   salary: string
@@ -141,6 +145,9 @@ export interface Company {
   coverImage?: string
   verified?: boolean
   featured?: boolean
+  rating?: number
+  employees?: number
+  openPositions?: number
   socialLinks?: {
     linkedin?: string
     twitter?: string
@@ -334,7 +341,7 @@ export interface AdminSettings {
 
 // API Response Types
 export interface ApiResponse<T = any> {
-  status: string
+  status: "success" | "error"
   message: string
   data: T
   errors?: Record<string, string[]>

@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, FileText, Mail, Briefcase, Building2, PlusCircle, BarChart, UserPlus } from "lucide-react"
 import Link from "next/link"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { isMockEnabled } from "@/lib/utils/config"
+import { useToast } from "@/hooks/use-toast"
 
 interface DashboardStats {
   activeJobs: { value: number; change: string }
@@ -18,11 +19,12 @@ interface DashboardStats {
   responseRate: { value: string; change: string }
 }
 
-export default function ManagerDashboard() {
+export default function EmployerDashboard() {
   const { user } = useAuth()
   const router = useRouter()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (!user) router.push("/login")
@@ -31,28 +33,33 @@ export default function ManagerDashboard() {
       try {
         setLoading(true)
         // Fetch dashboard stats from API
-        const response = await managerApi.getAnalytics()
+        const response = await employerApi.getAnalytics()
 
         setStats({
           activeJobs: {
-            value: response.activeJobs || 0,
-            change: response.jobsChange || "+0 this month",
+            value: response.data.activeJobs || 0,
+            change: response.data.jobsChange || "+0 this month",
           },
           totalApplications: {
-            value: response.totalApplications || 0,
-            change: response.applicationsChange || "+0 this week",
+            value: response.data.totalApplications || 0,
+            change: response.data.applicationsChange || "+0 this week",
           },
           interviewsScheduled: {
-            value: response.interviewsScheduled || 0,
-            change: response.interviewsChange || "Next 7 days",
+            value: response.data.interviewsScheduled || 0,
+            change: response.data.interviewsChange || "Next 7 days",
           },
           responseRate: {
-            value: response.responseRate || "0%",
-            change: response.responseRateChange || "+0% this month",
+            value: response.data.responseRate || "0%",
+            change: response.data.responseRateChange || "+0% this month",
           },
         })
       } catch (error) {
         console.error("Error fetching dashboard stats:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard statistics",
+          variant: "destructive",
+        })
 
         // If API call fails or mock is enabled, use mock data
         if (isMockEnabled()) {
@@ -69,60 +76,67 @@ export default function ManagerDashboard() {
     }
 
     fetchDashboardStats()
-  }, [user, router])
+  }, [user, router, toast])
 
   // Dashboard menu items - this is configuration, not mock data
   const dashboardItems = [
     {
+      title: "Manage Jobs",
+      icon: Briefcase,
+      description: "View and manage your job listings",
+      link: "/employer/jobs",
+      color: "vibrant-blue",
+    },
+    {
       title: "Post New Job",
       icon: PlusCircle,
       description: "Create and publish new job listings",
-      link: "/manager/jobs/new",
-      color: "vibrant-blue",
+      link: "/employer/jobs/new",
+      color: "vibrant-green",
     },
     {
       title: "Manage Applications",
       icon: FileText,
       description: "Review and manage candidate applications",
-      link: "/manager/applications",
-      color: "vibrant-green",
+      link: "/employer/applications",
+      color: "vibrant-orange",
     },
     {
       title: "Company Profile",
       icon: Building2,
       description: "Update your company information and branding",
-      link: "/manager/company",
-      color: "vibrant-orange",
+      link: "/employer/company",
+      color: "vibrant-pink",
     },
     {
       title: "Analytics",
       icon: BarChart,
       description: "View recruitment metrics and insights",
-      link: "/manager/analytics",
-      color: "vibrant-pink",
+      link: "/employer/analytics",
+      color: "vibrant-purple",
     },
     {
       title: "Interview Schedule",
       icon: Users,
       description: "Manage candidate interviews and feedback",
-      link: "/manager/interviews",
-      color: "vibrant-purple",
+      link: "/employer/interviews",
+      color: "vibrant-yellow",
     },
     {
       title: "Register Student",
       icon: UserPlus,
       description: "Create new student accounts for the platform",
-      link: "/manager/register",
-      color: "vibrant-yellow",
+      link: "/employer/register",
+      color: "vibrant-purple",
     },
   ]
 
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="min-h-screen bg-gradient-to-b from-background via-muted to-background">
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 text-center bg-gradient-to-r from-vibrant-blue to-vibrant-purple bg-clip-text text-transparent">
-            Company Manager Dashboard
+            Company Employer Dashboard
           </h1>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">

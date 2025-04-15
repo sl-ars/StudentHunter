@@ -30,6 +30,8 @@ export interface AuthResponse {
     name: string
     role: string
     avatar?: string
+    company?: string
+    company_id?: string
   }
 }
 
@@ -45,6 +47,8 @@ export interface VerifyResponse {
     name: string
     role: string
     avatar?: string
+    company?: string
+    company_id?: string
   }
 }
 
@@ -82,7 +86,7 @@ export const authApi = {
     return { access }
   },
 
-  verifyToken: async (token: string): Promise<{ detail: string }> => {
+  verifyToken: async (token: string): Promise<ApiResponse<VerifyResponse>> => {
     const response = await apiClient.post<ApiResponse<VerifyResponse>>("/auth/token/verify/", {
       token,
     })

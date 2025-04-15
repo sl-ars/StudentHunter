@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { jobsApi } from "@/lib/api/jobs"
+import { employerApi } from "@/lib/api"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
 
@@ -16,12 +16,12 @@ export default function NewJobPage() {
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)
     try {
-      await jobsApi.createJob(formData)
+      await employerApi.createJob(formData)
       toast({
         title: "Success",
         description: "Job posting created successfully",
       })
-      router.push("/manager/jobs")
+      router.push("/employer/jobs")
     } catch (error) {
       console.error("Error creating job:", error)
       toast({
@@ -45,7 +45,7 @@ export default function NewJobPage() {
           <h1 className="text-2xl font-bold tracking-tight">Create New Job Posting</h1>
           <p className="text-muted-foreground">Post a new job opening for your company</p>
         </div>
-        <Button variant="outline" onClick={handleCancel}>
+        <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
           Cancel
         </Button>
       </div>
@@ -56,7 +56,7 @@ export default function NewJobPage() {
           <CardDescription>Fill in the details for your new job posting</CardDescription>
         </CardHeader>
         <CardContent>
-          <JobPostingForm onSubmit={handleSubmit} isLoading={isSaving} submitLabel="Create Job" />
+          <JobPostingForm onSubmit={handleSubmit} />
         </CardContent>
       </Card>
     </div>

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/contexts/auth-context"
 import { ApplicationQuestionsForm } from "./application-questions-form"
 
 interface JobPostingFormProps {
@@ -19,13 +20,27 @@ interface JobPostingFormProps {
 interface ApplicationQuestion {
   id: string
   question: string
+  type: string
+  required: boolean
 }
 
 export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
   const [formData, setFormData] = useState(
-    initialData || {
+    initialData ? {
+      ...initialData,
+      requirements: Array.isArray(initialData.requirements) 
+        ? initialData.requirements.join('\n') 
+        : initialData.requirements || "",
+      responsibilities: Array.isArray(initialData.responsibilities)
+        ? initialData.responsibilities.join('\n')
+        : initialData.responsibilities || "",
+      benefits: Array.isArray(initialData.benefits)
+        ? initialData.benefits.join('\n')
+        : initialData.benefits || "",
+    } : {
       title: "",
       type: "",
       location: "",
@@ -34,6 +49,8 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
       requirements: "",
       responsibilities: "",
       benefits: "",
+      company: user?.company || "",
+      company_id: user?.company_id || "",
     },
   )
 
@@ -44,10 +61,24 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
     setLoading(true)
 
     try {
-      await onSubmit({
+      // Convert newline-separated text to arrays for JSON fields
+      const processedData = {
         ...formData,
+        requirements: Array.isArray(formData.requirements) 
+          ? formData.requirements 
+          : formData.requirements.split('\n').filter(Boolean),
+        responsibilities: Array.isArray(formData.responsibilities)
+          ? formData.responsibilities
+          : formData.responsibilities.split('\n').filter(Boolean),
+        benefits: Array.isArray(formData.benefits)
+          ? formData.benefits
+          : formData.benefits.split('\n').filter(Boolean),
         applicationQuestions,
-      })
+        company: user?.company || formData.company,
+        company_id: user?.company_id || formData.company_id,
+      }
+
+      await onSubmit(processedData)
       toast({
         title: initialData ? "Job updated" : "Job posted",
         description: initialData
@@ -55,6 +86,7 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
           : "Your job has been posted successfully",
       })
     } catch (error) {
+      console.error("Error submitting form:", error)
       toast({
         title: "Error",
         description: "Failed to save job posting. Please try again.",
@@ -116,6 +148,26 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
                 onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
                 placeholder="e.g. $50,000 - $70,000"
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="company">Company Name</label>
+              <Input
+                id="company"
+                value={formData.company}
+                readOnly
+                disabled
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="company_id">Company ID</label>
+              <Input
+                id="company_id"
+                value={formData.company_id}
+                readOnly
+                disabled
               />
             </div>
           </div>

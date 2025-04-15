@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar, Clock, User } from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { isMockEnabled } from "@/lib/utils/config"
+import { toast } from "@/components/ui/use-toast"
 
 interface Interview {
   id: string
@@ -19,7 +20,7 @@ interface Interview {
   time: string
 }
 
-export default function InterviewsPage() {
+export default function EmployerInterviewsPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [interviews, setInterviews] = useState<Interview[]>([])
@@ -31,20 +32,15 @@ export default function InterviewsPage() {
     const fetchInterviews = async () => {
       try {
         setLoading(true)
-        const response = await managerApi.getInterviews()
-
-        // Transform API response to match our component's expected format
-        const formattedInterviews = response.results.map((interview: any) => ({
-          id: interview.id,
-          name: interview.candidateName || interview.applicantName || "Candidate",
-          position: interview.position || interview.jobTitle || "Position",
-          date: interview.date || new Date(interview.scheduledAt).toISOString().split("T")[0] || "Unknown date",
-          time: interview.time || new Date(interview.scheduledAt).toLocaleTimeString() || "Unknown time",
-        }))
-
-        setInterviews(formattedInterviews)
+        const response = await employerApi.getInterviews()
+        setInterviews(response.data)
       } catch (error) {
         console.error("Error fetching interviews:", error)
+        toast({
+          title: "Error",
+          description: "Failed to fetch interviews",
+          variant: "destructive",
+        })
 
         // If API call fails or mock is enabled, use mock data
         if (isMockEnabled()) {
@@ -62,8 +58,26 @@ export default function InterviewsPage() {
     fetchInterviews()
   }, [user, router])
 
+  const handleStatusChange = async (interviewId: string, newStatus: string) => {
+    try {
+      await employerApi.updateInterviewStatus(interviewId, newStatus)
+      fetchInterviews()
+      toast({
+        title: "Success",
+        description: "Interview status updated successfully",
+      })
+    } catch (error) {
+      console.error("Error updating interview status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update interview status",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">Interview Schedule</h1>
         <Card>

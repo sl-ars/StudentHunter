@@ -44,15 +44,15 @@ export function DashboardSidebar({ children }: { children: React.ReactNode }) {
           { title: "Reports", icon: FileText, href: "/campus/reports" },
           { title: "Settings", icon: Settings, href: "/campus/settings" },
         ]
-      case "manager":
+      case "employer":
         return [
-          { title: "Dashboard", icon: Home, href: "/manager" },
-          { title: "Post Job", icon: Briefcase, href: "/manager/jobs/new" },
-          { title: "Applications", icon: FileText, href: "/manager/applications" },
-          { title: "Company", icon: Building, href: "/manager/company" },
-          { title: "Analytics", icon: BarChart, href: "/manager/analytics" },
-          { title: "Interviews", icon: Calendar, href: "/manager/interviews" },
-          { title: "Settings", icon: Settings, href: "/manager/settings" },
+          { title: "Dashboard", icon: Home, href: "/employer" },
+          { title: "Post Job", icon: Briefcase, href: "/employer/jobs/new" },
+          { title: "Applications", icon: FileText, href: "/employer/applications" },
+          { title: "Company", icon: Building, href: "/employer/company" },
+          { title: "Analytics", icon: BarChart, href: "/employer/analytics" },
+          { title: "Interviews", icon: Calendar, href: "/employer/interviews" },
+          { title: "Settings", icon: Settings, href: "/employer/settings" },
         ]
       default:
         return []

@@ -11,16 +11,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 import { isMockEnabled } from "@/lib/utils/config"
 
 interface CompanyProfile {
-  name: string
+  company_name: string
   industry: string
-  location: string
   website: string
   description: string
+  company: string
+  company_id: string
 }
 
 export default function CompanyProfilePage() {
@@ -28,11 +29,12 @@ export default function CompanyProfilePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [profile, setProfile] = useState<CompanyProfile>({
-    name: "",
+    company_name: "",
     industry: "",
-    location: "",
     website: "",
     description: "",
+    company: "",
+    company_id: "",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -43,14 +45,15 @@ export default function CompanyProfilePage() {
     const fetchCompanyProfile = async () => {
       try {
         setLoading(true)
-        const response = await managerApi.getCompanyProfile()
+        const response = await employerApi.getCompanyProfile()
 
         setProfile({
-          name: response.name || "",
-          industry: response.industry || "",
-          location: response.location || "",
-          website: response.website || "",
-          description: response.description || "",
+          company_name: response.data.company_name || "",
+          industry: response.data.industry || "",
+          website: response.data.website || "",
+          description: response.data.description || "",
+          company: response.data.company || "",
+          company_id: response.data.company_id || "",
         })
       } catch (error) {
         console.error("Error fetching company profile:", error)
@@ -58,11 +61,12 @@ export default function CompanyProfilePage() {
         // If API call fails or mock is enabled, use mock data
         if (isMockEnabled()) {
           setProfile({
-            name: "TechCorp Inc.",
+            company_name: "TechCorp Inc.",
             industry: "Technology",
-            location: "San Francisco, CA",
             website: "https://techcorp.com",
             description: "TechCorp is a leading technology company...",
+            company: "TechCorp Inc.",
+            company_id: "techcorp-1",
           })
         }
       } finally {
@@ -85,15 +89,21 @@ export default function CompanyProfilePage() {
     setSaving(true)
 
     try {
-      await managerApi.updateCompanyProfile(profile)
+      const profileData = {
+        ...profile,
+        company: profile.company_name,
+        company_id: profile.company_name.toLowerCase().replace(/\s+/g, '-')
+      }
+      console.log('Saving profile data:', profileData)
+      const response = await employerApi.updateCompanyProfile(profileData)
+      console.log('Profile update response:', response)
 
       toast({
         title: "Profile updated",
-        description: "Your company profile has been updated successfully.",
+        description: "Your company profile has been successfully updated.",
       })
     } catch (error) {
-      console.error("Error updating company profile:", error)
-
+      console.error('Error updating profile:', error)
       toast({
         title: "Error",
         description: "Failed to update company profile. Please try again.",
@@ -105,7 +115,7 @@ export default function CompanyProfilePage() {
   }
 
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">Company Profile</h1>
         <Card>
@@ -121,8 +131,9 @@ export default function CompanyProfilePage() {
                   <Label htmlFor="company-name">Company Name</Label>
                   <Input
                     id="company-name"
-                    value={profile.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
+                    value={profile.company_name}
+                    onChange={(e) => handleChange("company_name", e.target.value)}
+                    required
                   />
                 </div>
                 <div>
@@ -131,14 +142,7 @@ export default function CompanyProfilePage() {
                     id="industry"
                     value={profile.industry}
                     onChange={(e) => handleChange("industry", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    value={profile.location}
-                    onChange={(e) => handleChange("location", e.target.value)}
+                    required
                   />
                 </div>
                 <div>

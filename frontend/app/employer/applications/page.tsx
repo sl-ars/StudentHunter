@@ -16,8 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import ProtectedRoute from "@/components/protected-route"
-import { managerApi } from "@/lib/api"
+import { employerApi } from "@/lib/api"
 import { isMockEnabled } from "@/lib/utils/config"
+import { toast } from "@/components/ui/use-toast"
 
 interface Application {
   id: string
@@ -27,7 +28,7 @@ interface Application {
   status: string
 }
 
-export default function ApplicationsPage() {
+export default function EmployerApplicationsPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [applications, setApplications] = useState<Application[]>([])
@@ -39,20 +40,15 @@ export default function ApplicationsPage() {
     const fetchApplications = async () => {
       try {
         setLoading(true)
-        const response = await managerApi.getApplications()
-
-        // Transform API response to match our component's expected format
-        const formattedApplications = response.results.map((app: any) => ({
-          id: app.id,
-          name: app.applicantName || app.userName || "Applicant",
-          position: app.jobTitle || app.position || "Position",
-          date: app.appliedDate || app.createdAt || "Unknown date",
-          status: app.status || "New",
-        }))
-
-        setApplications(formattedApplications)
+        const response = await employerApi.getApplications()
+        setApplications(response.data)
       } catch (error) {
         console.error("Error fetching applications:", error)
+        toast({
+          title: "Error",
+          description: "Failed to fetch applications",
+          variant: "destructive",
+        })
 
         // If API call fails or mock is enabled, use mock data
         if (isMockEnabled()) {
@@ -70,8 +66,26 @@ export default function ApplicationsPage() {
     fetchApplications()
   }, [user, router])
 
+  const handleStatusChange = async (applicationId: string, newStatus: string) => {
+    try {
+      await employerApi.updateApplicationStatus(applicationId, newStatus)
+      fetchApplications()
+      toast({
+        title: "Success",
+        description: "Application status updated successfully",
+      })
+    } catch (error) {
+      console.error("Error updating application status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update application status",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
-    <ProtectedRoute roles="manager">
+    <ProtectedRoute roles="employer">
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">Manage Applications</h1>
         <Card>
