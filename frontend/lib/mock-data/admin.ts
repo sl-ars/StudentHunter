@@ -59,7 +59,6 @@ export const mockAdminCompanies = [
   { id: "4", name: "FinTech Frontier", industry: "Finance", location: "New York, NY", verified: false },
   { id: "5", name: "EduLearn Systems", industry: "Education", location: "Chicago, IL", verified: true },
 ]
-
 export const mockAdminAnalytics = {
   userGrowth: [
     { date: "Jan", count: 100 },
@@ -84,3 +83,4 @@ export const mockAdminAnalytics = {
     { name: "Admins", value: 34 },
   ],
 }
+

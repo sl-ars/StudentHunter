@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     'applications',
     'companies',
     'analytics',
-    'notifications',
+    # 'notifications',
     'admin_api',
     'campus',
     'resources',

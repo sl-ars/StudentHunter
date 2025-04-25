@@ -11,23 +11,23 @@ interface ApiResponse<T> {
 export const employerApi = {
   // Jobs
   getJobs: async () => {
-    const response = await apiClient.get<ApiResponse<Job[]>>("/employer/jobs/")
+    const response = await apiClient.get<ApiResponse<Job[]>>("/job/employer/jobs/")
     return response.data
   },
 
   getJob: async (id: string) => {
-    const response = await apiClient.get<ApiResponse<Job>>(`/jobs/${id}/`)
+    const response = await apiClient.get<ApiResponse<Job>>(`/job/${id}/`)
     return response.data
   },
 
   createJob: async (jobData: Partial<Job>) => {
-    const response = await apiClient.post<ApiResponse<Job>>("/jobs/", jobData)
+    const response = await apiClient.post<ApiResponse<Job>>("/job/", jobData)
     return response.data
   },
 
   updateJob: async (id: string, jobData: Partial<Job>) => {
     try {
-      const response = await apiClient.put<ApiResponse<Job>>(`/employer/jobs/${id}/`, jobData)
+      const response = await apiClient.put<ApiResponse<Job>>(`/job/employer/jobs/${id}/`, jobData)
       return response.data
     } catch (error: any) {
       console.error("Error updating job:", error)
@@ -36,7 +36,7 @@ export const employerApi = {
   },
 
   deleteJob: async (id: string) => {
-    const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/jobs/${id}/`)
+    const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/job/${id}/`)
     return response.data
   },
 
@@ -79,7 +79,7 @@ export const employerApi = {
 
   // Analytics
   getAnalytics: async (period?: string) => {
-    const response = await apiClient.get<ApiResponse<any>>("/employer/", { params: { period } })
+    const response = await apiClient.get<ApiResponse<any>>("/job/employer/", { params: { period } })
     return response.data
   },
 

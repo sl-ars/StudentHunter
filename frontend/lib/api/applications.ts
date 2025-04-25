@@ -29,7 +29,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/applications/", { params: filters })
+    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/application/", { params: filters })
     return response.data
   },
 
@@ -46,7 +46,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/applications/me", { params: filters })
+    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/application/me", { params: filters })
     return response.data
   },
 
@@ -70,7 +70,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication>>(`/applications/${id}`)
+    const response = await apiClient.get<ApiResponse<JobApplication>>(`/application/${id}`)
     return response.data
   },
 
@@ -107,7 +107,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.patch<ApiResponse<JobApplication>>(`/applications/${applicationId}/status`, {
+    const response = await apiClient.patch<ApiResponse<JobApplication>>(`/application/${applicationId}/status`, {
       status,
       comments,
     })
@@ -135,7 +135,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.post<ApiResponse<JobApplication>>(`/applications/apply`, {
+    const response = await apiClient.post<ApiResponse<JobApplication>>(`/application/apply`, {
       job_id: jobId,
       ...data,
     })
@@ -162,7 +162,7 @@ export const applicationApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.post<ApiResponse<JobApplication>>(`/applications/quick-apply`, {
+    const response = await apiClient.post<ApiResponse<JobApplication>>(`/application/quick-apply`, {
       job_id: jobId,
     })
     return response.data

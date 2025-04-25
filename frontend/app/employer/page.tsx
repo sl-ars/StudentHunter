@@ -122,13 +122,13 @@ export default function EmployerDashboard() {
       link: "/employer/interviews",
       color: "vibrant-yellow",
     },
-    {
-      title: "Register Student",
-      icon: UserPlus,
-      description: "Create new student accounts for the platform",
-      link: "/employer/register",
-      color: "vibrant-purple",
-    },
+    // {
+    //   title: "Register Student",
+    //   icon: UserPlus,
+    //   description: "Create new student accounts for the platform",
+    //   link: "/employer/register",
+    //   color: "vibrant-purple",
+    // },
   ]
 
   return (

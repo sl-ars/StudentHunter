@@ -40,17 +40,17 @@ export interface CompaniesResponse {
 // Legacy API using axios directly
 export const companiesApi = {
   getCompanies: async (filters: CompanyFilters = {}): Promise<AxiosResponse<AxiosApiResponse<CompanyListResponse>>> => {
-    const response = await axios.get<AxiosApiResponse<CompanyListResponse>>("/companies/", { params: filters })
+    const response = await axios.get<AxiosApiResponse<CompanyListResponse>>("/company/", { params: filters })
     return response
   },
 
   getCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.get<AxiosApiResponse<Company>>(`/companies/${id}/`)
+    const response = await axios.get<AxiosApiResponse<Company>>(`/company/${id}/`)
     return response
   },
 
   createCompany: async (companyData: Partial<Company>): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.post<AxiosApiResponse<Company>>("/companies/", companyData)
+    const response = await axios.post<AxiosApiResponse<Company>>("/company/", companyData)
     return response
   },
 
@@ -58,12 +58,12 @@ export const companiesApi = {
     id: string,
     companyData: Partial<Company>,
   ): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.put<AxiosApiResponse<Company>>(`/companies/${id}/`, companyData)
+    const response = await axios.put<AxiosApiResponse<Company>>(`/company/${id}/`, companyData)
     return response
   },
 
   deleteCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<{ success: boolean }>>> => {
-    const response = await axios.delete<AxiosApiResponse<{ success: boolean }>>(`/companies/${id}/`)
+    const response = await axios.delete<AxiosApiResponse<{ success: boolean }>>(`/company/${id}/`)
     return response
   },
 
@@ -72,7 +72,7 @@ export const companiesApi = {
     const formData = new FormData()
     formData.append("logo", file)
 
-    const response = await axios.post<AxiosApiResponse<{ url: string }>>(`/companies/${id}/logo/`, formData, {
+    const response = await axios.post<AxiosApiResponse<{ url: string }>>(`/company/${id}/logo/`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -82,7 +82,7 @@ export const companiesApi = {
 
   // Company verification
   verifyCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<{ success: boolean }>>> => {
-    const response = await axios.post<AxiosApiResponse<{ success: boolean }>>(`/companies/${id}/verify/`, {})
+    const response = await axios.post<AxiosApiResponse<{ success: boolean }>>(`/company/${id}/verify/`, {})
     return response
   },
 
@@ -112,7 +112,7 @@ export const companiesApi = {
         followers: number
         hires: number
       }>
-    >(`/companies/${id}/stats/`)
+    >(`/company/${id}/stats/`)
     return response
   },
 }
@@ -122,7 +122,7 @@ export const companyApi = {
   getAll: async (filters: CompanyFilters = {}): Promise<ApiResponse<CompaniesResponse>> => {
     try {
       const pageSize = filters.page_size ?? 20;
-      const response = await apiClient.get<ApiResponse<CompanyListResponse>>("/companies", { params: filters })
+      const response = await apiClient.get<ApiResponse<CompanyListResponse>>("/company", { params: filters })
 
       // Check if the response has the expected structure
       if (response.data && response.data.data && Array.isArray(response.data.data.results)) {
@@ -184,7 +184,7 @@ export const companyApi = {
 
   getById: async (id: string): Promise<ApiResponse<Company>> => {
     try {
-      const response = await apiClient.get<ApiResponse<Company>>(`/companies/${id}`)
+      const response = await apiClient.get<ApiResponse<Company>>(`/company/${id}`)
       return response.data
     } catch (error: any) {
       return {
@@ -197,7 +197,7 @@ export const companyApi = {
 
   create: async (data: Partial<Company>): Promise<ApiResponse<Company>> => {
     try {
-      const response = await apiClient.post<ApiResponse<Company>>("/companies", data)
+      const response = await apiClient.post<ApiResponse<Company>>("/company", data)
       return response.data
     } catch (error: any) {
       return {
@@ -210,7 +210,7 @@ export const companyApi = {
 
   update: async (id: string, data: Partial<Company>): Promise<ApiResponse<Company>> => {
     try {
-      const response = await apiClient.put<ApiResponse<Company>>(`/companies/${id}`, data)
+      const response = await apiClient.put<ApiResponse<Company>>(`/company/${id}`, data)
       return response.data
     } catch (error: any) {
       return {
@@ -223,7 +223,7 @@ export const companyApi = {
 
   delete: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/companies/${id}`)
+      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/company/${id}`)
       return response.data
     } catch (error: any) {
       return {
@@ -240,7 +240,7 @@ export const companyApi = {
       const formData = new FormData()
       formData.append("logo", file)
 
-      const response = await apiClient.post<ApiResponse<{ url: string }>>(`/companies/${id}/logo`, formData, {
+      const response = await apiClient.post<ApiResponse<{ url: string }>>(`/company/${id}/logo`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -258,7 +258,7 @@ export const companyApi = {
   // Company verification
   verifyCompany: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.post<ApiResponse<{ success: boolean }>>(`/companies/${id}/verify`, {})
+      const response = await apiClient.post<ApiResponse<{ success: boolean }>>(`/company/${id}/verify`, {})
       return response.data
     } catch (error: any) {
       return {
@@ -302,7 +302,7 @@ export const companyApi = {
           followers: number
           hires: number
         }>
-      >(`/companies/${id}/stats/`)
+      >(`/company/${id}/stats/`)
       return response.data
     } catch (error: any) {
       return {

@@ -61,8 +61,8 @@ export const resourcesApi = {
         status: "success",
         data: {
           count: filteredResources.length,
-          next: end < filteredResources.length ? `/resources/?page=${page + 1}` : null,
-          previous: page > 1 ? `/resources/?page=${page - 1}` : null,
+          next: end < filteredResources.length ? `/resource/?page=${page + 1}` : null,
+          previous: page > 1 ? `/resource/?page=${page - 1}` : null,
           results: paginatedResources,
         },
         message: "Resources retrieved successfully",
@@ -76,7 +76,7 @@ export const resourcesApi = {
         filters.isDemo = true
       }
 
-      const response = await apiClient.get<ApiResponse<ResourceListResponse>>("/resources/", { params: filters })
+      const response = await apiClient.get<ApiResponse<ResourceListResponse>>("/resource/", { params: filters })
       return response.data
     } catch (error) {
       console.error("Error fetching resources:", error)
@@ -103,7 +103,7 @@ export const resourcesApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<Resource>>(`/resources/${id}/`)
+    const response = await apiClient.get<ApiResponse<Resource>>(`/resource/${id}/`)
     return response.data
   },
 
@@ -119,7 +119,7 @@ export const resourcesApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<string[]>>("/resources/categories/")
+    const response = await apiClient.get<ApiResponse<string[]>>("/resource/categories/")
     return response.data
   },
 
@@ -135,28 +135,28 @@ export const resourcesApi = {
     }
 
     // Real API implementation
-    const response = await apiClient.get<ApiResponse<string[]>>("/resources/types/")
+    const response = await apiClient.get<ApiResponse<string[]>>("/resource/types/")
     return response.data
   },
 
   // Other methods remain the same...
   createResource: async (resourceData: Partial<Resource>) => {
-    const response = await apiClient.post<ApiResponse<Resource>>("/resources/", resourceData)
+    const response = await apiClient.post<ApiResponse<Resource>>("/resource/", resourceData)
     return response.data
   },
 
   updateResource: async (id: string, resourceData: Partial<Resource>) => {
-    const response = await apiClient.put<ApiResponse<Resource>>(`/resources/${id}/`, resourceData)
+    const response = await apiClient.put<ApiResponse<Resource>>(`/resource/${id}/`, resourceData)
     return response.data
   },
 
   deleteResource: async (id: string) => {
-    const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/resources/${id}/`)
+    const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/resource/${id}/`)
     return response.data
   },
 
   downloadResource: async (id: string) => {
-    const response = await apiClient.get<ApiResponse<ResourceResponse>>(`/resources/${id}/download/`)
+    const response = await apiClient.get<ApiResponse<ResourceResponse>>(`/resource/${id}/download/`)
     return response.data
   },
 
