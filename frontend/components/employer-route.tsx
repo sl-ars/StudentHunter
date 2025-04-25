@@ -16,13 +16,13 @@ export default function EmployerRoute({ children }: { children: React.ReactNode 
       return
     }
 
-    if (!hasRole("manager")) {
+    if (!hasRole("employer")) {
       router.push("/unauthorized")
       return
     }
   }, [user, hasRole, router])
 
-  if (!user || !hasRole("manager")) {
+  if (!user || !hasRole("employer")) {
     return null
   }
 

@@ -24,7 +24,8 @@ interface JobCardProps {
     salary?: string
     description: string
     requirements?: string[]
-    postedAt: string
+    postedAt?: string
+    postedDate?: string
     deadline?: string
     isSaved?: boolean
     isQuickApply?: boolean
@@ -63,7 +64,25 @@ export function JobCard({
     }
   }
 
-  const postedTimeAgo = formatDistanceToNow(new Date(job.postedAt), { addSuffix: true })
+  // Safely format the posted time with fallback
+  const getPostedTimeAgo = () => {
+    try {
+      // Use postedAt if available, otherwise try postedDate
+      const dateString = job.postedAt || job.postedDate
+      if (!dateString) return "Recently posted"
+      
+      // Check if the date is valid before formatting
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return "Recently posted"
+      
+      return formatDistanceToNow(date, { addSuffix: true })
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return "Recently posted"
+    }
+  }
+
+  const postedTimeAgo = getPostedTimeAgo()
 
   return (
     <Card className={`overflow-hidden ${className}`}>
@@ -103,15 +122,18 @@ export function JobCard({
               size="icon"
               onClick={handleSaveToggle}
               disabled={isLoading}
-              aria-label={isSaved ? "Unsave job" : "Save job"}
+              className="text-muted-foreground hover:text-primary"
             >
-              {isSaved ? <BookmarkCheck className="h-5 w-5 text-primary" /> : <Bookmark className="h-5 w-5" />}
+              {isSaved ? (
+                <BookmarkCheck className="h-5 w-5 text-primary" />
+              ) : (
+                <Bookmark className="h-5 w-5" />
+              )}
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent className="pb-3">
-        {showDescription && <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{job.description}</p>}
+      <CardContent className="pb-2">
         <div className="flex flex-wrap gap-2 mb-3">
           <Badge variant="outline" className="flex items-center">
             <Briefcase className="h-3 w-3 mr-1" />
@@ -119,37 +141,35 @@ export function JobCard({
           </Badge>
           {job.salary && (
             <Badge variant="outline" className="flex items-center">
-              ${job.salary}
+              <Clock className="h-3 w-3 mr-1" />
+              {job.salary}
             </Badge>
           )}
-          {job.tags?.map((tag) => (
-            <Badge key={tag} variant="secondary">
+          <Badge variant="outline" className="flex items-center">
+            <Calendar className="h-3 w-3 mr-1" />
+            {postedTimeAgo}
+          </Badge>
+        </div>
+        {showDescription && (
+          <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
+        )}
+      </CardContent>
+      <CardFooter className="pt-2 flex justify-between">
+        <div className="flex flex-wrap gap-1">
+          {job.tags?.slice(0, 2).map((tag) => (
+            <Badge key={tag} variant="secondary" className="text-xs">
               {tag}
             </Badge>
           ))}
         </div>
-        <div className="flex items-center text-xs text-muted-foreground">
-          <Clock className="h-3 w-3 mr-1" />
-          Posted {postedTimeAgo}
-          {job.deadline && (
-            <>
-              <span className="mx-2">•</span>
-              <Calendar className="h-3 w-3 mr-1" />
-              Deadline: {new Date(job.deadline).toLocaleDateString()}
-            </>
-          )}
+        <div className="flex gap-2">
+          {job.isQuickApply && <QuickApplyButton jobId={job.id} />}
+          <Button asChild variant="default" size="sm">
+            <Link href={`/jobs/${job.id}`}>View Details</Link>
+          </Button>
         </div>
-      </CardContent>
-      {showActions && (
-        <CardFooter className="pt-0">
-          <div className="flex gap-2 w-full">
-            <Button asChild className="flex-1">
-              <Link href={`/jobs/${job.id}`}>View Details</Link>
-            </Button>
-            {job.isQuickApply && <QuickApplyButton jobId={job.id} className="flex-1" />}
-          </div>
-        </CardFooter>
-      )}
+      </CardFooter>
     </Card>
   )
 }
+

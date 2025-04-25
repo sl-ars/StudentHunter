@@ -30,7 +30,7 @@ export async function unsaveJob(jobId: string) {
 export async function applyToJob(jobId: string, applicationData: any) {
   try {
     // Call the API to submit the application
-    const response = await fetch(`/api/jobs/${jobId}/apply`, {
+    const response = await fetch(`/api/job/${jobId}/apply`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

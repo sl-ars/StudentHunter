@@ -2,6 +2,7 @@ import apiClient from "./client"
 import type { ApiResponse } from "./client"
 import type { Job } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
+import { mockJobs } from "@/lib/mock-data/jobs"
 
 // Combine all interfaces from both files
 export interface JobFilters {
@@ -47,7 +48,7 @@ export const getJobs = async (
     // Add authentication status for API to know what data to return
     params.append("authenticated", isAuthenticated ? "true" : "false")
 
-    const response = await apiClient.get<ApiResponse<JobsResponse>>(`/jobs/?${params.toString()}`)
+    const response = await apiClient.get<ApiResponse<JobsResponse>>(`/job/?${params.toString()}`)
     return response.data
   } catch (error: any) {
     console.error("Error fetching jobs:", error)
@@ -119,18 +120,31 @@ export const getJobs = async (
 // Get job by ID
 export const getJobById = async (id: string): Promise<Job | null> => {
   try {
-    const response = await apiClient.get<ApiResponse<Job>>(`/jobs/${id}/`)
-    return response.data.data
-  } catch (error: any) {
-    console.error(`Error fetching job with ID ${id}:`, error)
-
-    // Fallback to mock data if API call fails or if mock is enabled
+    console.log("getJobById called with ID:", id, "Type:", typeof id)
+    const response = await apiClient.get(`/job/${id}/`)
+    console.log("API response:", response)
+    
     if (isMockEnabled()) {
-      const { mockJobs } = await import("@/lib/mock-data/jobs")
-      const job = mockJobs.find((job) => job.id === id)
-      return job || null
+      console.log("Mock mode enabled, checking mock data")
+      const mockJob = mockJobs.find((job: Job) => job.id === id)
+      console.log("Found mock job:", mockJob)
+      return mockJob || null
     }
-
+    
+    // Check if response has the expected structure
+    if (response.data && response.data.data) {
+      return response.data.data
+    }
+    
+    return response.data
+  } catch (error) {
+    console.error("Error in getJobById:", error)
+    if (isMockEnabled()) {
+      console.log("Falling back to mock data")
+      const mockJob = mockJobs.find((job: Job) => job.id === id)
+      console.log("Found mock job:", mockJob)
+      return mockJob || null
+    }
     return null
   }
 }
@@ -138,7 +152,7 @@ export const getJobById = async (id: string): Promise<Job | null> => {
 // Get similar jobs
 export const getSimilarJobs = async (jobId: string): Promise<Job[]> => {
   try {
-    const response = await apiClient.get<ApiResponse<Job[]>>(`/jobs/${jobId}/similar/`)
+    const response = await apiClient.get<ApiResponse<Job[]>>(`/job/${jobId}/similar/`)
     return response.data.data
   } catch (error: any) {
     console.error(`Error fetching similar jobs for job ID ${jobId}:`, error)
@@ -168,7 +182,7 @@ export const getSimilarJobs = async (jobId: string): Promise<Job[]> => {
 // Save a job
 export const saveJob = async (jobId: string): Promise<ApiResponse<void>> => {
   try {
-    await apiClient.post<ApiResponse<void>>(`/jobs/${jobId}/save/`)
+ const response = await apiClient.get<ApiResponse<Job[]>>(`/job/${jobId}/similar/`)
     return {
       status: "success",
       message: "Job saved successfully",
@@ -197,7 +211,7 @@ export const saveJob = async (jobId: string): Promise<ApiResponse<void>> => {
 // Unsave a job
 export const unsaveJob = async (jobId: string): Promise<ApiResponse<void>> => {
   try {
-    await apiClient.delete<ApiResponse<void>>(`/jobs/${jobId}/save/`)
+    await apiClient.delete<ApiResponse<void>>(`/job/${jobId}/save/`)
     return {
       status: "success",
       message: "Job unsaved successfully",
@@ -226,7 +240,7 @@ export const unsaveJob = async (jobId: string): Promise<ApiResponse<void>> => {
 // Add this method if it doesn't exist or fix it if it does
 export const getAll = async (filters: any) => {
   try {
-    const response = await apiClient.get("/jobs", { params: filters })
+    const response = await apiClient.get("/job", { params: filters })
     return response
   } catch (error) {
     console.error("Error fetching jobs:", error)
@@ -240,7 +254,7 @@ export const jobApi = {
   getJobs,
   getJob: async (id: string): Promise<ApiResponse<Job>> => {
     try {
-      const response = await apiClient.get<ApiResponse<Job>>(`/jobs/${id}/`)
+      const response = await apiClient.get<ApiResponse<Job>>(`/job/${id}/`)
       return response.data
     } catch (error: any) {
       // Fallback to mock data if API call fails or if mock is enabled
@@ -265,7 +279,7 @@ export const jobApi = {
   checkApplicationStatus: async (jobId: string, userId: string): Promise<ApiResponse<{ hasApplied: boolean }>> => {
     try {
       const response = await apiClient.get<ApiResponse<{ hasApplied: boolean }>>(
-        `/jobs/${jobId}/application-status/${userId}/`,
+        `/job/${jobId}/application-status/${userId}/`,
       )
       return response.data
     } catch (error: any) {
@@ -279,7 +293,7 @@ export const jobApi = {
 
   applyForJob: async (jobId: string, userId: string, applicationData: any): Promise<ApiResponse<any>> => {
     try {
-      const response = await apiClient.post<ApiResponse<any>>(`/jobs/${jobId}/apply/`, { userId, ...applicationData })
+      const response = await apiClient.post<ApiResponse<any>>(`/job/${jobId}/apply/`, { userId, ...applicationData })
       return response.data
     } catch (error: any) {
       return {
@@ -292,7 +306,7 @@ export const jobApi = {
 
   createJob: async (data: Partial<Job>): Promise<ApiResponse<Job>> => {
     try {
-      const response = await apiClient.post<ApiResponse<Job>>("/jobs/", data)
+      const response = await apiClient.post<ApiResponse<Job>>("/job/", data)
       return response.data
     } catch (error: any) {
       return {
@@ -305,7 +319,7 @@ export const jobApi = {
 
   updateJob: async (id: string, data: Partial<Job>): Promise<ApiResponse<Job>> => {
     try {
-      const response = await apiClient.patch<ApiResponse<Job>>(`/jobs/${id}/`, data)
+      const response = await apiClient.patch<ApiResponse<Job>>(`/job/${id}/`, data)
       return response.data
     } catch (error: any) {
       return {
@@ -318,7 +332,7 @@ export const jobApi = {
 
   deleteJob: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/jobs/${id}/`)
+      const response = await apiClient.delete<ApiResponse<{ success: boolean }>>(`/job/${id}/`)
       return response.data
     } catch (error: any) {
       return {
@@ -332,7 +346,7 @@ export const jobApi = {
   // Application questions
   getApplicationQuestions: async (jobId: string): Promise<ApiResponse<any[]>> => {
     try {
-      const response = await apiClient.get<ApiResponse<any[]>>(`/jobs/${jobId}/questions/`)
+      const response = await apiClient.get<ApiResponse<any[]>>(`/job/${jobId}/questions/`)
       return response.data
     } catch (error: any) {
       return {
@@ -345,7 +359,7 @@ export const jobApi = {
 
   updateApplicationQuestions: async (jobId: string, questions: any[]): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.put<ApiResponse<{ success: boolean }>>(`/jobs/${jobId}/questions/`, {
+      const response = await apiClient.put<ApiResponse<{ success: boolean }>>(`/job/${jobId}/questions/`, {
         questions,
       })
       return response.data
@@ -374,7 +388,7 @@ export const jobApi = {
         }
 
         const response = await apiClient.post<ApiResponse<{ success: boolean; application_id: string }>>(
-          `/jobs/${id}/apply/`,
+          `/job/${id}/apply/`,
           formData,
           {
             headers: {
@@ -388,7 +402,7 @@ export const jobApi = {
 
       // Otherwise, use JSON
       const response = await apiClient.post<ApiResponse<{ success: boolean; application_id: string }>>(
-        `/jobs/${id}/apply/`,
+        `/job/${id}/apply/`,
         {
           resume_id: data.resumeId,
           answers: data.answers,
@@ -407,7 +421,7 @@ export const jobApi = {
 
   getApplications: async (jobId: string): Promise<ApiResponse<any[]>> => {
     try {
-      const response = await apiClient.get<ApiResponse<any[]>>(`/jobs/${jobId}/applications/`)
+      const response = await apiClient.get<ApiResponse<any[]>>(`/job/${jobId}/applications/`)
       return response.data
     } catch (error: any) {
       return {
@@ -420,7 +434,7 @@ export const jobApi = {
 
   getApplication: async (jobId: string, applicationId: string): Promise<ApiResponse<any>> => {
     try {
-      const response = await apiClient.get<ApiResponse<any>>(`/jobs/${jobId}/applications/${applicationId}/`)
+      const response = await apiClient.get<ApiResponse<any>>(`/job/${jobId}/applications/${applicationId}/`)
       return response.data
     } catch (error: any) {
       return {
@@ -439,7 +453,7 @@ export const jobApi = {
   ): Promise<ApiResponse<{ success: boolean }>> => {
     try {
       const response = await apiClient.patch<ApiResponse<{ success: boolean }>>(
-        `/jobs/${jobId}/applications/${applicationId}/`,
+        `/job/${jobId}/applications/${applicationId}/`,
         {
           status,
           comments,
@@ -458,7 +472,7 @@ export const jobApi = {
   // Recommendations and matches
   getRecommendedJobs: async (): Promise<ApiResponse<Job[]>> => {
     try {
-      const response = await apiClient.get<ApiResponse<Job[]>>("/jobs/recommended/")
+      const response = await apiClient.get<ApiResponse<Job[]>>("/job/recommended/")
       return response.data
     } catch (error: any) {
       return {
@@ -472,7 +486,7 @@ export const jobApi = {
   getJobMatches: async (): Promise<ApiResponse<{ jobs: Job[]; matches: { jobId: string; score: number }[] }>> => {
     try {
       const response =
-        await apiClient.get<ApiResponse<{ jobs: Job[]; matches: { jobId: string; score: number }[] }>>("/jobs/matches/")
+        await apiClient.get<ApiResponse<{ jobs: Job[]; matches: { jobId: string; score: number }[] }>>("/job/matches/")
       return response.data
     } catch (error: any) {
       return {

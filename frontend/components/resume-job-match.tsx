@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { jobsApi } from "@/lib/api/jobs"
+import { jobApi } from "@/lib/api/jobs"
 import { useToast } from "@/hooks/use-toast"
 
 interface ResumeJobMatchProps {
@@ -24,10 +24,10 @@ export function ResumeJobMatch({ resumeId, jobId }: ResumeJobMatchProps) {
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const response = await jobsApi.getJobs({ limit: 5 })
-        setJobs(response.data.results)
-        if (!selectedJobId && response.data.results.length > 0) {
-          setSelectedJobId(response.data.results[0].id)
+        const response = await jobApi.getJobs({ page_size: 5 })
+        setJobs(response.data.jobs)
+        if (!selectedJobId && response.data.jobs.length > 0) {
+          setSelectedJobId(response.data.jobs[0].id)
         }
       } catch (error) {
         console.error("Error fetching jobs:", error)

@@ -99,7 +99,33 @@ export function getMockResponse(config: AxiosRequestConfig): any {
   if (url.includes("/jobs")) {
     const jobId = url.match(/\/jobs\/([^/]+)/)?.[1]
 
-    if (jobId && !url.includes("/applications")) {
+    if (url.includes("/employer/jobs")) {
+      if (method === "post") {
+        // Generate a new job ID
+        const newJobId = `job-${mockJobs.length + 1}`
+        const newJob = {
+          id: newJobId,
+          ...data,
+          postedDate: new Date().toISOString(),
+          status: "active",
+          views: 0,
+          applications: 0,
+        }
+        mockJobs.push(newJob)
+        return {
+          ...defaultResponse,
+          data: newJob,
+          message: "Job created successfully",
+        }
+      }
+
+      return {
+        ...defaultResponse,
+        data: mockJobs.filter(job => job.companyId === "current-company"),
+      }
+    }
+
+    if (jobId) {
       const job = mockJobs.find((j) => j.id === jobId)
       return {
         ...defaultResponse,
@@ -108,33 +134,13 @@ export function getMockResponse(config: AxiosRequestConfig): any {
       }
     }
 
-    if (url.includes("/recommended")) {
-      return {
-        ...defaultResponse,
-        data: mockJobs.slice(0, 3),
-      }
-    }
-
-    if (url.includes("/matches")) {
-      return {
-        ...defaultResponse,
-        data: {
-          jobs: mockJobs.slice(0, 5),
-          matches: mockJobs.slice(0, 5).map((job) => ({
-            jobId: job.id,
-            score: Math.floor(Math.random() * 100),
-          })),
-        },
-      }
-    }
-
     return {
       ...defaultResponse,
       data: {
-        jobs: mockJobs,
-        totalCount: mockJobs.length,
-        currentPage: 1,
-        totalPages: 1,
+        results: mockJobs,
+        count: mockJobs.length,
+        next: null,
+        previous: null,
       },
     }
   }
