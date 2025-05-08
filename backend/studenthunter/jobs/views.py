@@ -3,12 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from .models import Job
 from .serializers import JobSerializer
 from applications.models import Application
 from applications.serializers import ApplicationSerializer
 from .permissions import IsEmployerOrReadOnly, IsApplicantOrEmployer
 
+@extend_schema(tags=['jobs'])
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
@@ -113,6 +115,7 @@ class JobViewSet(viewsets.ModelViewSet):
             'message': 'Jobs retrieved successfully'
         })
 
+@extend_schema(tags=['jobs'])
 class JobApplicationViewSet(viewsets.ModelViewSet):
     queryset = Application.objects.all()
     serializer_class = ApplicationSerializer

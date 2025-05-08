@@ -5,21 +5,9 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView
 )
-
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.permissions import AllowAny
-
-schema_view = get_schema_view(
-    openapi.Info(
-        title="StudentHunter API",
-        default_version="v1",
-        description="API for StudentHunter Platform",
-    ),
-    public=True,
-    permission_classes=(AllowAny,),
-)
-
+from django.conf import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/core/', include('core.urls')),
@@ -35,7 +23,17 @@ urlpatterns = [
     path('api/application/', include('applications.urls')),
     path('api/analytics/', include('analytics.urls')),
 
-    # Swagger / Redoc
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+
 ]
+
+# Handle media files in development
+if settings.DEBUG:
+    urlpatterns += [
+        # DRF Spectacular - Schema, Swagger UI, Redoc UI
+        path('api/schema/', SpectacularAPIView.as_view(permission_classes=[AllowAny]), name='schema'),
+        path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[AllowAny]),
+             name='swagger-ui'),
+        path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema', permission_classes=[AllowAny]),
+             name='redoc'),
+    ]
+
