@@ -332,11 +332,23 @@ export interface AdminSettings {
   passwordExpiry: boolean
   smtpServer: string
   smtpPort: string
-  featuredJobsLimit: number
-  jobsPerPage: number
-  allowUserRegistration: boolean
+  smtpUsername?: string
+  smtpPassword?: string
+  smtpSecure: boolean
+  logoUrl: string
+  faviconUrl: string
+  primaryColor: string
+  primaryAccentColor: string
+  secondaryColor: string
+  allowOpenRegistration: boolean
   requireEmailVerification: boolean
-  defaultUserRole: string
+  allowStudentRegistration: boolean
+  allowEmployerRegistration: boolean
+  jobApprovalRequired: boolean
+  companyVerificationRequired: boolean
+  maxFileSizeInMb: number
+  allowedFileTypes: string[]
+  cookieConsentRequired: boolean
 }
 
 // API Response Types

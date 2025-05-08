@@ -7,6 +7,9 @@ import { authApi } from "@/lib/api/auth"
 import { User, UserRole } from "@/lib/types"
 import { toast } from "sonner"
 
+// Token refresh interval in milliseconds (20 minutes)
+const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000;
+
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
@@ -30,6 +33,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return role === 'admin' || role === 'employer' || role === 'campus' || role === 'student'
   }
 
+  // Function to refresh the access token
+  const refreshAccessToken = async (): Promise<boolean> => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (!refreshToken) return false
+
+      const response = await authApi.refreshToken(refreshToken)
+      if (response.access) {
+        localStorage.setItem('access_token', response.access)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Token refresh error:', error)
+      return false
+    }
+  }
+
   const checkAuth = async () => {
     try {
       setIsLoading(true)
@@ -37,60 +58,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Checking auth with token:', token ? 'exists' : 'missing')
       
       if (!token) {
-        setUser(null)
-        if (pathname !== '/login') {
-          router.push('/login')
-        }
-        return
-      }
-
-      const response = await authApi.verifyToken(token)
-      console.log('Auth verification response:', response)
-      
-      if (response.status === 'success' && response.data?.isValid && response.data?.user) {
-        const userData = response.data.user
-        const role = userData.role
-        if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
-          console.error('Invalid role:', role)
+        // Try to use refresh token if available
+        const hasRefreshed = await refreshAccessToken()
+        if (!hasRefreshed) {
           setUser(null)
-          localStorage.removeItem('access_token')
-          router.push('/login')
+          if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+            // Store current path for redirection after login
+            sessionStorage.setItem("authRedirect", pathname)
+            router.push('/login')
+          }
           return
         }
-        setUser({
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          role: userData.role,
-          avatar: userData.avatar,
-          company: userData.company,
-          company_id: userData.company_id,
-          createdAt: new Date().toISOString(),
-          isActive: true
-        })
+      }
 
-        // Redirect to appropriate page if on login
-        if (pathname === '/login') {
-          redirectBasedOnRole(userData.role)
+      // Get the possibly refreshed token
+      const currentToken = localStorage.getItem('access_token')
+      
+      try {
+        const response = await authApi.verifyToken(currentToken || '')
+        console.log('Auth verification response:', response)
+        
+        if (response.status === 'success' && response.data?.isValid && response.data?.user) {
+          const userData = response.data.user
+          const role = userData.role
+          if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
+            console.error('Invalid role:', role)
+            setUser(null)
+            localStorage.removeItem('access_token')
+            if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+              router.push('/login')
+            }
+            return
+          }
+          setUser({
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.role,
+            avatar: userData.avatar,
+            company: userData.company,
+            company_id: userData.company_id,
+            createdAt: new Date().toISOString(),
+            isActive: true
+          })
+
+          // Redirect to appropriate page if on login
+          if (pathname === '/login') {
+            redirectBasedOnRole(userData.role)
+          }
+        } else {
+          // Token invalid, try to refresh
+          const hasRefreshed = await refreshAccessToken()
+          if (hasRefreshed) {
+            // Check auth again with new token
+            checkAuth()
+          } else {
+            setUser(null)
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+              router.push('/login')
+            }
+          }
         }
-      } else {
-        setUser(null)
-        localStorage.removeItem('access_token')
-        if (pathname !== '/login') {
-          router.push('/login')
+      } catch (verifyError) {
+        console.error('Token verification error:', verifyError)
+        // Token validation failed, try to refresh
+        const hasRefreshed = await refreshAccessToken()
+        if (hasRefreshed) {
+          // Check auth again with new token
+          checkAuth()
+        } else {
+          setUser(null)
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+            router.push('/login')
+          }
         }
       }
     } catch (error) {
       console.error('Auth check error:', error)
       setUser(null)
       localStorage.removeItem('access_token')
-      if (pathname !== '/login') {
+      localStorage.removeItem('refresh_token')
+      if (pathname !== '/login' && !pathname.startsWith('/public/')) {
         router.push('/login')
       }
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Set up automatic token refresh
+  useEffect(() => {
+    // Only set up refresh timer if user is authenticated
+    if (user) {
+      const refreshTimer = setInterval(refreshAccessToken, TOKEN_REFRESH_INTERVAL)
+      return () => clearInterval(refreshTimer)
+    }
+  }, [user])
 
   useEffect(() => {
     checkAuth()

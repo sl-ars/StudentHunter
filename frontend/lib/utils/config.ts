@@ -16,6 +16,9 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || "https://api.studenthunter.example.com"
 }
 
+// Export API URL as a constant for easier usage in services
+export const API_URL = getApiBaseUrl();
+
 /**
  * Get application environment
  */

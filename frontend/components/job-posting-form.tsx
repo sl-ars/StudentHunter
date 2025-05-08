@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,10 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { ApplicationQuestionsForm } from "./application-questions-form"
+import { companiesApi } from "@/lib/api/companies"
 
 interface JobPostingFormProps {
   onSubmit: (data: any) => Promise<void>
   initialData?: any
+  isAdmin?: boolean
+  isLoading?: boolean
+  submitLabel?: string
 }
 
 interface ApplicationQuestion {
@@ -24,8 +28,21 @@ interface ApplicationQuestion {
   required: boolean
 }
 
-export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
-  const [loading, setLoading] = useState(false)
+interface Company {
+  id: string
+  name: string
+}
+
+export function JobPostingForm({ 
+  onSubmit, 
+  initialData, 
+  isAdmin = false,
+  isLoading = false,
+  submitLabel
+}: JobPostingFormProps) {
+  const [loading, setLoading] = useState(isLoading)
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
   const [formData, setFormData] = useState(
@@ -56,6 +73,32 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
 
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([])
 
+  // Fetch companies for admin users
+  useEffect(() => {
+    if (isAdmin) {
+      const fetchCompanies = async () => {
+        setLoadingCompanies(true);
+        try {
+          const response = await companiesApi.getCompanies();
+          if (response.status === 'success' && Array.isArray(response.data)) {
+            setCompanies(response.data);
+          }
+        } catch (error) {
+          console.error("Error fetching companies:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load companies. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          setLoadingCompanies(false);
+        }
+      };
+      
+      fetchCompanies();
+    }
+  }, [isAdmin, toast]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -74,8 +117,8 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
           ? formData.benefits
           : formData.benefits.split('\n').filter(Boolean),
         applicationQuestions,
-        company: user?.company || formData.company,
-        company_id: user?.company_id || formData.company_id,
+        company: formData.company,
+        company_id: formData.company_id,
       }
 
       await onSubmit(processedData)
@@ -96,6 +139,17 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
       setLoading(false)
     }
   }
+
+  const handleCompanyChange = (companyId: string) => {
+    const selected = companies.find(c => c.id === companyId);
+    if (selected) {
+      setFormData({
+        ...formData,
+        company_id: selected.id,
+        company: selected.name
+      });
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit}>
@@ -152,24 +206,56 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="company">Company Name</label>
-              <Input
-                id="company"
-                value={formData.company}
-                readOnly
-                disabled
-              />
+              <label htmlFor="company">Company</label>
+              {isAdmin ? (
+                <Select 
+                  value={formData.company_id} 
+                  onValueChange={handleCompanyChange}
+                  disabled={loadingCompanies}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select a company"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="company"
+                  value={formData.company}
+                  readOnly
+                  disabled
+                />
+              )}
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="company_id">Company ID</label>
-              <Input
-                id="company_id"
-                value={formData.company_id}
-                readOnly
-                disabled
-              />
-            </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <label htmlFor="company_id">Company ID</label>
+                <Input
+                  id="company_id"
+                  value={formData.company_id}
+                  readOnly
+                  disabled
+                />
+              </div>
+            )}
+            {!isAdmin && (
+              <div className="space-y-2">
+                <label htmlFor="company_id">Company ID</label>
+                <Input
+                  id="company_id"
+                  value={formData.company_id}
+                  readOnly
+                  disabled
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -227,8 +313,8 @@ export function JobPostingForm({ onSubmit, initialData }: JobPostingFormProps) {
             <Button type="button" variant="outline">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : initialData ? "Update Job" : "Post Job"}
+            <Button type="submit" disabled={loading || isLoading}>
+              {loading || isLoading ? "Saving..." : submitLabel || (initialData ? "Update Job" : "Post Job")}
             </Button>
           </div>
         </CardContent>

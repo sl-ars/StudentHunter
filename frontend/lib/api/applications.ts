@@ -1,170 +1,142 @@
-import apiClient from "./client"
-import type { ApiResponse } from "./client"
-import type { JobApplication } from "../types"
-import { mockApplications } from "../mock-data/applications"
-import { isMockEnabled } from "../utils/config"
+import axios from 'axios';
+import apiClient from './client';
+import { Application } from '@/lib/types';
+import { API_URL } from '../utils/config';
 
-export interface ApplicationFilters {
-  status?: string
-  job_id?: string
-  company_id?: string
-  search?: string
-  page?: number
-  page_size?: number
-  sort_by?: string
-  sort_order?: string
+const API_PATH = `${API_URL}/application`;
+
+export interface ApplicationsQueryParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  job?: string;
+  ordering?: string;
 }
 
-// Define the application API
-export const applicationApi = {
-  // Get all applications (for employers/admins)
-  getApplications: async (filters: ApplicationFilters = {}): Promise<ApiResponse<JobApplication[]>> => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      return {
-        status: "success",
-        data: mockApplications,
-        message: "Applications retrieved successfully",
-      }
+export const applicationsApi = {
+  // Получение списка заявок с возможностью фильтрации
+  getApplications: async (params?: ApplicationsQueryParams) => {
+    try {
+      const response = await apiClient.get(API_PATH, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+      throw error;
     }
-
-    // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/application/", { params: filters })
-    return response.data
   },
 
-  // Get applications for the current user (for students)
-  getMyApplications: async (filters: ApplicationFilters = {}): Promise<ApiResponse<JobApplication[]>> => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      return {
-        count: mockApplications.length,
-        next: null,
-        previous: null,
-        results: mockApplications,
-      }
-    }
-
-    // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication[]>>("/application/me", { params: filters })
-    return response.data
-  },
-
-  // Get a specific application
+  // Получение отдельной заявки по ID
   getApplication: async (id: string) => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      const application = mockApplications.find((app) => app.id === id)
-      if (application) {
-        return {
-          status: "success",
-          data: application,
-          message: "Application retrieved successfully",
-        }
-      }
-      return {
-        status: "error",
-        message: "Application not found",
-        data: null,
-      }
+    try {
+      const response = await apiClient.get(`${API_PATH}/${id}/`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching application ${id}:`, error);
+      throw error;
     }
-
-    // Real API implementation
-    const response = await apiClient.get<ApiResponse<JobApplication>>(`/application/${id}`)
-    return response.data
   },
 
-  // Update application status
-  updateApplicationStatus: async (
-    applicationId: string,
-    status: string,
-    comments?: string,
-  ): Promise<ApiResponse<JobApplication>> => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      const applicationIndex = mockApplications.findIndex((app) => app.id === applicationId)
-      if (applicationIndex !== -1) {
-        const updatedApplication = {
-          ...mockApplications[applicationIndex],
-          status,
-          comments: comments || mockApplications[applicationIndex].comments,
-          updatedAt: new Date().toISOString(),
-        }
-
-        // In a real implementation, we would update the mock data
-        // For now, just return the updated application
-        return {
-          status: "success",
-          data: updatedApplication,
-          message: "Application status updated successfully",
-        }
-      }
-      return {
-        status: "error",
-        message: "Application not found",
-        data: null,
-      }
+  // Создание новой заявки
+  createApplication: async (applicationData: Partial<Application>) => {
+    try {
+      const response = await apiClient.post(API_PATH, applicationData);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating application:', error);
+      throw error;
     }
-
-    // Real API implementation
-    const response = await apiClient.patch<ApiResponse<JobApplication>>(`/application/${applicationId}/status`, {
-      status,
-      comments,
-    })
-    return response.data
   },
 
-  // Apply for a job
-  applyForJob: async (jobId: string, data: any): Promise<ApiResponse<JobApplication>> => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      const newApplication = {
-        id: `app-${Date.now()}`,
-        jobId,
-        status: "pending",
-        ...data,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      return {
-        status: "success",
-        data: newApplication,
-        message: "Application submitted successfully",
-      }
+  // Обновление существующей заявки
+  updateApplication: async (id: string, applicationData: Partial<Application>) => {
+    try {
+      const response = await apiClient.put(`${API_PATH}/${id}/`, applicationData);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating application ${id}:`, error);
+      throw error;
     }
-
-    // Real API implementation
-    const response = await apiClient.post<ApiResponse<JobApplication>>(`/application/apply`, {
-      job_id: jobId,
-      ...data,
-    })
-    return response.data
   },
 
-  // Quick apply for a job
-  quickApply: async (jobId: string): Promise<ApiResponse<JobApplication>> => {
-    if (isMockEnabled()) {
-      // Mock implementation
-      const newApplication = {
-        id: `app-${Date.now()}`,
-        jobId,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      return {
-        status: "success",
-        data: newApplication,
-        message: "Application submitted successfully",
-      }
+  // Удаление заявки
+  deleteApplication: async (id: string) => {
+    try {
+      const response = await apiClient.delete(`${API_PATH}/${id}/`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting application ${id}:`, error);
+      throw error;
     }
-
-    // Real API implementation
-    const response = await apiClient.post<ApiResponse<JobApplication>>(`/application/quick-apply`, {
-      job_id: jobId,
-    })
-    return response.data
   },
-}
+
+  // Обновление статуса заявки
+  updateApplicationStatus: async (id: string, status: string, notes?: string) => {
+    try {
+      const response = await apiClient.post(`${API_PATH}/${id}/update_status/`, { status, notes });
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating status for application ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Назначение собеседования
+  scheduleInterview: async (id: string, interview_date: string, notes?: string) => {
+    try {
+      const response = await apiClient.post(`${API_PATH}/${id}/schedule_interview/`, { interview_date, notes });
+      return response.data;
+    } catch (error) {
+      console.error(`Error scheduling interview for application ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Получение заявок на конкретную вакансию
+  getApplicationsByJob: async (jobId: string, status?: string) => {
+    try {
+      const params = { job_id: jobId };
+      if (status) {
+        Object.assign(params, { status });
+      }
+      const response = await apiClient.get(`${API_PATH}/by-job/`, { params });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching applications for job ${jobId}:`, error);
+      throw error;
+    }
+  },
+
+  // Получение заявок текущего соискателя
+  getMyApplications: async (status?: string) => {
+    try {
+      const params = status ? { status } : {};
+      const response = await apiClient.get(`${API_PATH}/my/`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching my applications:', error);
+      throw error;
+    }
+  },
+
+  // Получение заявок для работодателя
+  getEmployerApplications: async (params?: ApplicationsQueryParams) => {
+    try {
+      const response = await apiClient.get(`${API_PATH}/employer/`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching employer applications:', error);
+      throw error;
+    }
+  },
+
+  // Получение статистики по заявкам
+  getApplicationStats: async () => {
+    try {
+      const response = await apiClient.get(`${API_PATH}/stats/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching application stats:', error);
+      throw error;
+    }
+  },
+};
