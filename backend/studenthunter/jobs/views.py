@@ -170,7 +170,7 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def employer_jobs(self, request):
-        """Получить все вакансии текущего работодателя"""
+        """Get all jobs of the current employer"""
         if not request.user.is_authenticated or request.user.role != 'employer':
             return Response(
                 {'error': 'Unauthorized'},
@@ -179,13 +179,15 @@ class JobViewSet(viewsets.ModelViewSet):
         
         jobs = Job.objects.filter(created_by=request.user)
         
-        # Фильтрация по активности
+        # Filter by activity status
         active_filter = request.query_params.get('active')
         if active_filter is not None:
             is_active = active_filter.lower() == 'true'
             jobs = jobs.filter(is_active=is_active)
         
         serializer = self.get_serializer(jobs, many=True)
+        
+        # Format response to match frontend expectations
         return Response({
             'status': 'success',
             'data': serializer.data,

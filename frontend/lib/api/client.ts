@@ -1,7 +1,5 @@
 import axios, { InternalAxiosRequestConfig } from "axios"
-import { isMockEnabled } from "../utils/config"
 import Cookies from "js-cookie"
-import { getMockResponse } from "./mock-service"
 
 // Define the standard API response format
 export interface ApiResponse<T = any> {
@@ -13,14 +11,14 @@ export interface ApiResponse<T = any> {
 
 // Create axios instance with default config
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
   headers: {
     "Content-Type": "application/json",
   },
   timeout: 10000, // 10 seconds
 })
 
-// Add a request interceptor to include the JWT token in requests and handle mock data
+// Add a request interceptor to include the JWT token in requests
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Check if we're in a browser environment
@@ -32,15 +30,6 @@ apiClient.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
-    }
-
-    // If mock data is enabled, intercept the request and return mock data
-    if (isMockEnabled()) {
-      const mockResponse = getMockResponse(config)
-      return Promise.resolve({
-        ...config,
-        data: mockResponse,
-      })
     }
 
     return config
@@ -109,7 +98,7 @@ apiClient.interceptors.response.use(
 
         // Try to refresh the token
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || "/api"}/auth/token/refresh/`,
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/token/refresh/`,
           { refresh: refreshToken },
           { headers: { "Content-Type": "application/json" } }
         )

@@ -1,17 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { employerApi } from "@/lib/api"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function NewJobPage() {
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { refreshUserInfo } = useAuth()
+
+  // Refresh user information when page loads to get latest company data
+  useEffect(() => {
+    const refreshData = async () => {
+      try {
+        console.log("Refreshing user data to get latest company information...")
+        await refreshUserInfo()
+        console.log("User data refreshed for job creation")
+      } catch (error) {
+        console.error("Error refreshing user data:", error)
+      }
+    }
+    
+    refreshData()
+  }, [refreshUserInfo])
 
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)

@@ -18,6 +18,7 @@ interface AuthContextType {
   logout: () => void
   register: (userData: any, redirectPath?: string) => Promise<boolean>
   hasRole: (roles: string | string[]) => boolean
+  refreshUserInfo: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -48,6 +49,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Token refresh error:', error)
       return false
+    }
+  }
+
+  const refreshUserInfo = async (): Promise<void> => {
+    try {
+      console.log('Refreshing user info...')
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        console.warn('No token available to refresh user info')
+        return
+      }
+
+      const response = await authApi.verifyToken(token)
+      if (response.status === 'success' && response.data?.isValid && response.data?.user) {
+        const userData = response.data.user
+        console.log('Updated user data:', userData)
+
+        // Update user state with refreshed data
+        if (user) {
+          setUser({
+            ...user,
+            company: userData.company,
+            company_id: userData.company_id,
+          })
+          console.log('User info refreshed with new company data')
+        }
+      } else {
+        console.warn('Failed to refresh user info, invalid response:', response)
+      }
+    } catch (error) {
+      console.error('Error refreshing user info:', error)
     }
   }
 
@@ -281,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     register,
     hasRole,
+    refreshUserInfo,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

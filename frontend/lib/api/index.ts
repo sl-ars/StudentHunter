@@ -4,7 +4,7 @@ import { campusApi } from './campus'
 import { careerQuestApi } from './career-quest'
 import apiClient from './client'
 import { companiesApi } from './companies'
-import { jobApi, jobsApi } from './jobs'
+import { jobApi } from './jobs'
 import { notificationApi } from './notifications'
 import { resourcesApi } from './resources'
 import { resumeApi } from './resume'
@@ -35,7 +35,6 @@ export {
   apiClient,
   companiesApi,
   jobApi,
-  jobsApi,
   notificationApi,
   resourcesApi,
   resumeApi,
@@ -58,7 +57,7 @@ export * from './companies';
 export * from './resources';
 
 // Админские API
-const ADMIN_API_PATH = `${API_URL}/api/admin`;
+const ADMIN_API_PATH = `${API_URL}/admin`;
 
 export interface AdminQueryParams {
   page?: number;

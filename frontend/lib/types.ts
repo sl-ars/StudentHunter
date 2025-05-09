@@ -111,6 +111,7 @@ export interface AdminDashboardStats {
 export interface Company {
   id: string;
   name: string;
+  company_name?: string;
   description: string;
   website: string | null;
   location: string;
@@ -124,4 +125,6 @@ export interface Company {
   culture: string | null;
   benefits: Record<string, any> | null;
   social_links: Record<string, string> | null;
+  company?: string;
+  company_id?: string;
 } 

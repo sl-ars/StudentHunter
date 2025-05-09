@@ -1,9 +1,6 @@
 import axios from 'axios';
 import apiClient from './client';
 import { Application } from '@/lib/types';
-import { API_URL } from '../utils/config';
-
-const API_PATH = `${API_URL}/application`;
 
 export interface ApplicationsQueryParams {
   page?: number;
@@ -17,7 +14,7 @@ export const applicationsApi = {
   // Получение списка заявок с возможностью фильтрации
   getApplications: async (params?: ApplicationsQueryParams) => {
     try {
-      const response = await apiClient.get(API_PATH, { params });
+      const response = await apiClient.get('/application/', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching applications:', error);
@@ -28,7 +25,7 @@ export const applicationsApi = {
   // Получение отдельной заявки по ID
   getApplication: async (id: string) => {
     try {
-      const response = await apiClient.get(`${API_PATH}/${id}/`);
+      const response = await apiClient.get(`/application/${id}/`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching application ${id}:`, error);
@@ -39,7 +36,7 @@ export const applicationsApi = {
   // Создание новой заявки
   createApplication: async (applicationData: Partial<Application>) => {
     try {
-      const response = await apiClient.post(API_PATH, applicationData);
+      const response = await apiClient.post('/application/', applicationData);
       return response.data;
     } catch (error) {
       console.error('Error creating application:', error);
@@ -50,7 +47,7 @@ export const applicationsApi = {
   // Обновление существующей заявки
   updateApplication: async (id: string, applicationData: Partial<Application>) => {
     try {
-      const response = await apiClient.put(`${API_PATH}/${id}/`, applicationData);
+      const response = await apiClient.put(`/application/${id}/`, applicationData);
       return response.data;
     } catch (error) {
       console.error(`Error updating application ${id}:`, error);
@@ -61,7 +58,7 @@ export const applicationsApi = {
   // Удаление заявки
   deleteApplication: async (id: string) => {
     try {
-      const response = await apiClient.delete(`${API_PATH}/${id}/`);
+      const response = await apiClient.delete(`/application/${id}/`);
       return response.data;
     } catch (error) {
       console.error(`Error deleting application ${id}:`, error);
@@ -72,7 +69,7 @@ export const applicationsApi = {
   // Обновление статуса заявки
   updateApplicationStatus: async (id: string, status: string, notes?: string) => {
     try {
-      const response = await apiClient.post(`${API_PATH}/${id}/update_status/`, { status, notes });
+      const response = await apiClient.post(`/application/${id}/update_status/`, { status, notes });
       return response.data;
     } catch (error) {
       console.error(`Error updating status for application ${id}:`, error);
@@ -83,7 +80,7 @@ export const applicationsApi = {
   // Назначение собеседования
   scheduleInterview: async (id: string, interview_date: string, notes?: string) => {
     try {
-      const response = await apiClient.post(`${API_PATH}/${id}/schedule_interview/`, { interview_date, notes });
+      const response = await apiClient.post(`/application/${id}/schedule_interview/`, { interview_date, notes });
       return response.data;
     } catch (error) {
       console.error(`Error scheduling interview for application ${id}:`, error);
@@ -98,7 +95,7 @@ export const applicationsApi = {
       if (status) {
         Object.assign(params, { status });
       }
-      const response = await apiClient.get(`${API_PATH}/by-job/`, { params });
+      const response = await apiClient.get(`/application/by-job/`, { params });
       return response.data;
     } catch (error) {
       console.error(`Error fetching applications for job ${jobId}:`, error);
@@ -110,7 +107,7 @@ export const applicationsApi = {
   getMyApplications: async (status?: string) => {
     try {
       const params = status ? { status } : {};
-      const response = await apiClient.get(`${API_PATH}/my/`, { params });
+      const response = await apiClient.get(`/application/my/`, { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching my applications:', error);
@@ -121,7 +118,7 @@ export const applicationsApi = {
   // Получение заявок для работодателя
   getEmployerApplications: async (params?: ApplicationsQueryParams) => {
     try {
-      const response = await apiClient.get(`${API_PATH}/employer/`, { params });
+      const response = await apiClient.get(`/application/employer/`, { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching employer applications:', error);
@@ -132,7 +129,7 @@ export const applicationsApi = {
   // Получение статистики по заявкам
   getApplicationStats: async () => {
     try {
-      const response = await apiClient.get(`${API_PATH}/stats/`);
+      const response = await apiClient.get(`/application/stats/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching application stats:', error);

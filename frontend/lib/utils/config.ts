@@ -1,14 +1,6 @@
 // Configuration utility functions
 
 /**
- * Check if mock data mode is enabled
- */
-export function isMockEnabled(): boolean {
-  // Check the environment variable to determine if mock data should be used
-  return process.env.NEXT_PUBLIC_MOCK_ENABLED === "true"
-}
-
-/**
  * Get API base URL
  */
 export function getApiBaseUrl(): string {
@@ -24,4 +16,12 @@ export const API_URL = getApiBaseUrl();
  */
 export function getEnvironment(): "development" | "production" | "test" {
   return (process.env.NODE_ENV as "development" | "production" | "test") || "development"
+}
+
+/**
+ * Check if mock data should be enabled
+ * We now always return false since we're using real API data
+ */
+export function isMockEnabled(): boolean {
+  return false;
 }

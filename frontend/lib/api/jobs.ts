@@ -4,7 +4,6 @@ import type { Job } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
 import { mockJobs } from "@/lib/mock-data/jobs"
 import axios from 'axios'
-import { API_URL } from '../utils/config'
 
 // Combine all interfaces from both files
 export interface JobFilters {
@@ -514,8 +513,6 @@ export const jobApi = {
   },
 }
 
-const API_PATH = `${API_URL}/job`
-
 export interface JobsQueryParams {
   page?: number
   limit?: number
@@ -527,124 +524,3 @@ export interface JobsQueryParams {
   featured?: boolean
   ordering?: string
 }
-
-export const jobsApi = {
-  getJobs: async (params?: JobsQueryParams) => {
-    try {
-      const response = await apiClient.get('/job/', { params });
-      
-      // Ensure consistent response format
-      if (response.data) {
-        if (response.data.status === 'success' && response.data.data) {
-          // Backend API response with standard format
-          return {
-            ...response.data,
-            data: {
-              ...response.data.data,
-              results: response.data.data.results || [],
-              count: response.data.data.count || 0
-            }
-          };
-        } else if (response.data.results) {
-          // Direct API response format
-          return {
-            status: 'success',
-            message: 'Jobs retrieved successfully',
-            data: {
-              results: response.data.results,
-              count: response.data.count || 0
-            }
-          };
-        } else if (Array.isArray(response.data)) {
-          // Raw array response
-          return {
-            status: 'success',
-            message: 'Jobs retrieved successfully',
-            data: {
-              results: response.data,
-              count: response.data.length
-            }
-          };
-        }
-      }
-      
-      // Fallback for unexpected response format
-      console.warn('Unexpected response format:', response);
-      return {
-        status: 'success',
-        message: 'Jobs retrieved successfully',
-        data: {
-          results: [],
-          count: 0
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-      
-      // Return empty results on error
-      return {
-        status: 'error',
-        message: 'Failed to retrieve jobs',
-        data: {
-          results: [],
-          count: 0
-        }
-      };
-    }
-  },
-  
-  getJobById: async (id: string) => {
-    try {
-      const response = await apiClient.get(`/job/${id}/`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error fetching job ${id}:`, error);
-      throw error;
-    }
-  },
-  
-  updateJob: async (id: string, jobData: any) => {
-    try {
-      const response = await apiClient.put(`/job/${id}/`, jobData);
-      return response.data;
-    } catch (error) {
-      console.error(`Error updating job ${id}:`, error);
-      throw error;
-    }
-  },
-  
-  deleteJob: async (id: string) => {
-    try {
-      const response = await apiClient.delete(`/job/${id}/`);
-      return response.data;
-    } catch (error) {
-      console.error(`Error deleting job ${id}:`, error);
-      throw error;
-    }
-  },
-  
-  createJob: async (jobData: any) => {
-    try {
-      const response = await apiClient.post('/job/', jobData);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating job:', error);
-      
-      // If mock is enabled, return mock success
-      if (isMockEnabled()) {
-        return {
-          status: 'success',
-          message: 'Job created successfully (mocked)',
-          data: {
-            id: 'mock-job-id',
-            ...jobData
-          }
-        };
-      }
-      
-      throw error;
-    }
-  },
-  
-  // Additional methods...
-};
