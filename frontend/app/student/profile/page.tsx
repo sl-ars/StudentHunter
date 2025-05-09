@@ -47,6 +47,7 @@ export default function StudentProfilePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [profileData, setProfileData] = useState<UserProfile | null>(null)
+  const [initialProfileData, setInitialProfileData] = useState<UserProfile | null>(null)
   const [profileCompletion, setProfileCompletion] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -57,6 +58,7 @@ export default function StudentProfilePage() {
   const [expandedExperience, setExpandedExperience] = useState<number | null>(null)
   const [expandedEducation, setExpandedEducation] = useState<number | null>(null)
   const [missingFields, setMissingFields] = useState<string[]>([])
+  const [skillsInputValue, setSkillsInputValue] = useState<string>("")
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -70,6 +72,11 @@ export default function StudentProfilePage() {
 
         const profileDataFromApi = response.data
         setProfileData(profileDataFromApi)
+        setInitialProfileData(profileDataFromApi)
+        // Initialize skillsInputValue here when profile data is fetched
+        if (profileDataFromApi) {
+          setSkillsInputValue(profileDataFromApi.skills?.join(", ") || "");
+        }
 
         // Calculate profile completion and identify missing fields
         const requiredFields = [
@@ -182,11 +189,36 @@ export default function StudentProfilePage() {
   }
 
   const handleProfileUpdate = async () => {
-    if (!profileData) return
+    if (!profileData || !initialProfileData) return
 
     try {
       setSaving(true)
-      await userApi.updateProfile(profileData)
+
+      const changedData: Partial<UserProfile> = {}
+      // Compare profileData with initialProfileData to find changes
+      for (const key in profileData) {
+        if (Object.prototype.hasOwnProperty.call(profileData, key)) {
+          const typedKey = key as keyof UserProfile
+          if (JSON.stringify(profileData[typedKey]) !== JSON.stringify(initialProfileData[typedKey])) {
+            // For arrays like skills, experience, education, achievements, always send the whole array if changed
+            // This is a simplification; a more granular diff could be implemented if needed
+            changedData[typedKey] = profileData[typedKey]
+          }
+        }
+      }
+      
+      if (Object.keys(changedData).length === 0) {
+        toast({
+          title: "No Changes",
+          description: "You haven\'t made any changes to your profile.",
+        })
+        setSaving(false)
+        return
+      }
+
+      await userApi.updateProfile(changedData as UserProfile) // Send only changed data
+      // After successful update, set initialProfileData to the new profileData
+      setInitialProfileData(profileData) 
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -394,6 +426,7 @@ export default function StudentProfilePage() {
                     <AvatarUpload
                       currentAvatar={profileData?.avatar}
                       onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
+                      role={user?.role}
                     />
                     <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
                     <p className="text-muted-foreground text-center">Student</p>
@@ -566,13 +599,16 @@ export default function StudentProfilePage() {
                           <Textarea
                             id="skills"
                             placeholder="Enter your skills (separated by commas)"
-                            value={profileData?.skills?.join(", ") || ""}
+                            value={skillsInputValue}
                             onChange={(e) => {
-                              const skillsArray = e.target.value
+                              const newRawValue = e.target.value;
+                              setSkillsInputValue(newRawValue);
+
+                              const skillsArray = newRawValue
                                 .split(",")
                                 .map((skill) => skill.trim())
-                                .filter(Boolean)
-                              handleInputChange("skills", skillsArray)
+                                .filter(Boolean);
+                              handleInputChange("skills", skillsArray);
                             }}
                           />
                         </div>

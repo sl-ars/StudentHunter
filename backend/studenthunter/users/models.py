@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from .managers import CustomUserManager
+from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
 from django.conf import settings
@@ -67,35 +67,7 @@ class Resume(models.Model):
             self.name = self.file.name
         super().save(*args, **kwargs)
 
-    def get_resume_url(self):
-        """Generates a signed S3 URL for secure resume download"""
-        if not self.file or not self.file.name:
-            return None
 
-        try:
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_S3_REGION_NAME,
-            )
-          
-            s3_key = f"resumes/{self.file.name}"
-
-            signed_url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
-                    "Key": s3_key
-                },
-                ExpiresIn=600,  # 10 minutes expiration
-                HttpMethod="GET",
-            )
-
-            return signed_url
-
-        except (NoCredentialsError, ClientError):
-            return None
 
 
 class Education(models.Model):
@@ -149,4 +121,36 @@ class CampusProfile(models.Model):
 
     def __str__(self):
         return f"Campus: {self.university}"
+
+
+class UserSettings(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='settings')
+    email_notifications = models.BooleanField(default=True)
+    push_notifications = models.BooleanField(default=True)
+    two_factor_auth = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'User Settings'
+        verbose_name_plural = 'User Settings'
+
+    def __str__(self):
+        return f'Settings for {self.user.email}'
+
+class CompanySettings(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='company_settings')
+    company_name = models.CharField(max_length=255)
+    company_website = models.URLField(blank=True, null=True)
+    company_description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Company Settings'
+        verbose_name_plural = 'Company Settings'
+
+    def __str__(self):
+        return f'Company settings for {self.user.email}'
+
 

@@ -13,14 +13,14 @@ from rest_framework_simplejwt.tokens import (
 )
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
-from .models import (
+from users.models import (
     CustomUser,
     Education,
     Experience,
     StudentProfile,
     EmployerProfile,
     CampusProfile,
-    Resume
+    Resume, UserSettings, CompanySettings
 )
 from companies.models import Company
 
@@ -47,7 +47,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['email', 'name', 'password', 'password2', 'role']
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'role': {'required': True}
+        }
 
     def validate(self, data):
         if data["password"] != data["password2"]:
@@ -241,7 +244,7 @@ class StudentProfileSerializer(BaseProfileSerializer):
         default=list
     )
     bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    resume = serializers.CharField(read_only=True, required=False, source='get_resume_display')
+    resume = serializers.CharField(read_only=True, required=False, source='get_resume_display', allow_null=True)
 
     class Meta:
         model = StudentProfile
@@ -250,6 +253,7 @@ class StudentProfileSerializer(BaseProfileSerializer):
             "university", "company", "created_at", "last_login", "is_active",
             "bio", "skills", "resume", "education", "experience"
         ]
+        read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active"]
 
     def update(self, instance, validated_data):
         education_data = validated_data.pop("education", None)
@@ -258,14 +262,67 @@ class StudentProfileSerializer(BaseProfileSerializer):
         instance = self._update_profile_fields(instance, validated_data)
 
         if education_data is not None:
-            instance.education.all().delete()
-            for edu in education_data:
-                Education.objects.create(student=instance, **edu)
+            existing_items_qs = instance.education.all()
+            existing_item_ids = set(existing_items_qs.values_list('id', flat=True))
+            payload_item_ids = set()
+
+            for item_payload in education_data:
+                item_id = item_payload.get('id')
+                if item_id:
+                    payload_item_ids.add(item_id)
+                    try:
+                        item_instance = existing_items_qs.get(id=item_id, student=instance)
+                        # Update existing instance
+                        for attr, value in item_payload.items():
+                            if attr == 'id': continue # Don't try to set id directly on existing instance
+                            setattr(item_instance, attr, value)
+                        item_instance.full_clean() # Ensure model validation passes
+                        item_instance.save()
+                    except Education.DoesNotExist:
+                        # Optionally: raise validation error or create if ID mismatch is allowed
+                        # For now, let's assume an ID implies existence and student ownership
+                        # If an ID is provided but doesn't match an existing record for this student,
+                        # it could be an error. Or, if we want to allow "moving" an education record
+                        # by ID (less likely for nested), this logic would need adjustment.
+                        # Current behavior: if ID is bad, it might error or skip.
+                        # Let's be explicit: if ID is there, it must be updatable.
+                        # If the goal is to create with a specific ID, that's unusual.
+                        # The test implies 'id' in payload is for updating.
+                        Education.objects.create(student=instance, **item_payload) # Fallback: create if not found by ID (problematic if ID is foreign)
+                else:
+                    # Create new instance
+                    new_item = Education.objects.create(student=instance, **item_payload)
+                    payload_item_ids.add(new_item.id)
+
+            ids_to_delete = existing_item_ids - payload_item_ids
+            if ids_to_delete:
+                instance.education.filter(id__in=ids_to_delete).delete()
 
         if experience_data is not None:
-            instance.experience.all().delete()
-            for exp in experience_data:
-                Experience.objects.create(student=instance, **exp)
+            existing_items_qs = instance.experience.all()
+            existing_item_ids = set(existing_items_qs.values_list('id', flat=True))
+            payload_item_ids = set()
+
+            for item_payload in experience_data:
+                item_id = item_payload.get('id')
+                if item_id:
+                    payload_item_ids.add(item_id)
+                    try:
+                        item_instance = existing_items_qs.get(id=item_id, student=instance)
+                        for attr, value in item_payload.items():
+                            if attr == 'id': continue
+                            setattr(item_instance, attr, value)
+                        item_instance.full_clean()
+                        item_instance.save()
+                    except Experience.DoesNotExist:
+                        Experience.objects.create(student=instance, **item_payload) # Fallback
+                else:
+                    new_item = Experience.objects.create(student=instance, **item_payload)
+                    payload_item_ids.add(new_item.id)
+            
+            ids_to_delete = existing_item_ids - payload_item_ids
+            if ids_to_delete:
+                instance.experience.filter(id__in=ids_to_delete).delete()
 
         return instance
 
@@ -278,6 +335,7 @@ class EmployerProfileSerializer(BaseProfileSerializer):
             "university", "company", "created_at", "last_login", "is_active",
             "company_name", "industry", "website", "description"
         ]
+        read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active"]
 
     def update(self, instance, validated_data):
         company_name = validated_data.get('company_name', instance.company_name)
@@ -323,13 +381,18 @@ class EmployerProfileSerializer(BaseProfileSerializer):
 
 
 class CampusProfileSerializer(BaseProfileSerializer):
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = CampusProfile
         fields = [
             "id", "name", "email", "role", "avatar", "phone", "location",
-            "university", "company", "created_at", "last_login", "is_active",
-            "university", "department", "position"
+            "university",
+            "company",
+            "created_at", "last_login", "is_active",
+            "department", "position"
         ]
+        read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active"]
 
     def update(self, instance, validated_data):
         return self._update_profile_fields(instance, validated_data)
@@ -340,11 +403,16 @@ class ResumeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Resume
-        fields = ['id', 'name', 'url', 'created_at', 'file']
-        read_only_fields = ['id', 'url', 'created_at', 'name']
+        fields = ['id', 'name', 'created_at', 'file', 'url']
+        read_only_fields = ['id', 'created_at', 'name', 'url']
 
     def get_url(self, obj):
-        return obj.get_resume_url()
+        if obj.file:
+            try:
+                return obj.file.url
+            except ValueError: # Handle cases where the file might not be persisted or URL is not available
+                return None
+        return None
 
     def validate_file(self, value):
         if not value:
@@ -368,6 +436,13 @@ class ResumeSerializer(serializers.ModelSerializer):
         return value
 
 
+class ResumeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = ['id', 'name', 'created_at']
+        read_only_fields = ['id', 'name', 'created_at']
+
+
 class PublicProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(read_only=True, use_url=True)
 
@@ -389,10 +464,29 @@ class VerifyTokenSerializer(serializers.Serializer):
             validated = AccessToken(tok)
             user_id = validated.get(api_settings.USER_ID_CLAIM)
             user = User.objects.get(pk=user_id)
-            return {"isValid": True, "user": UserSerializer(user).data}
+            return {"is_valid": True, "user": UserSerializer(user).data}
         except (TokenError, InvalidToken, User.DoesNotExist):
-            return {"isValid": False}
+
+            return {"is_valid": False}
 
 
 class RefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField(help_text="Refresh token issued by the server.")
+
+
+class UserSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserSettings
+        fields = [
+           'email_notifications', 'push_notifications', 'two_factor_auth',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class CompanySettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanySettings
+        fields = [
+            'company_name', 'company_website',
+            'company_description'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

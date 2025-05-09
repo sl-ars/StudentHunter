@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CompanyViewSet, employer_company_update
+from companies.views import CompanyViewSet, employer_company_update
 
 router = DefaultRouter()
 router.register(r'', CompanyViewSet)

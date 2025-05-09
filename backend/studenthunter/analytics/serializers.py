@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JobView, JobApplicationMetrics, EmployerMetrics
+from analytics.models import JobView, JobApplicationMetrics, EmployerMetrics
 
 class JobViewSerializer(serializers.ModelSerializer):
     class Meta:

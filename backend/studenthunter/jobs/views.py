@@ -4,11 +4,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import Job
-from .serializers import JobSerializer, JobListSerializer
+from jobs.models import Job
+from jobs.serializers import JobSerializer, JobListSerializer
 from applications.models import Application
 from applications.serializers import ApplicationSerializer
-from .permissions import IsEmployerOrReadOnly, IsApplicantOrEmployer
+from jobs.permissions import IsEmployerOrReadOnly, IsApplicantOrEmployer
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
 from django.utils import timezone

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ModerationLog, AdminNotification, AdminDashboardSetting, SystemSettings
+from admin_api.models import ModerationLog, AdminNotification, AdminDashboardSetting, SystemSettings
 from django.contrib.auth import get_user_model
 from jobs.models import Job
 from companies.models import Company

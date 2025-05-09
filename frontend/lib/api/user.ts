@@ -19,18 +19,29 @@ export interface PublicUserProfileData {
 }
 
 export const userApi = {
-  login: async (email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> => {
+  login: async (email: string, password: string): Promise<ApiResponse<{ user: User; access: string; refresh: string }>> => {
     try {
-      const response = await apiClient.post<ApiResponse<{ user: User; token: string }>>("/auth/login/", {
+      const response = await apiClient.post<ApiResponse<{ user: User; access: string; refresh: string }>>("/auth/login/", {
         email,
         password,
       })
+      
+      // If login is successful and tokens are present, store them
+      if (response.data && response.data.status === "success" && response.data.data) {
+        const { access, refresh } = response.data.data;
+        if (typeof access === 'string' && access) {
+          localStorage.setItem("access_token", access);
+        }
+        if (typeof refresh === 'string' && refresh) {
+          localStorage.setItem("refresh_token", refresh);
+        }
+      }
       return response.data
     } catch (error: any) {
       return {
         status: "error",
         message: error.message || "Login failed",
-        data: { user: null as any, token: "" },
+        data: { user: null as any, access: "", refresh: "" }, // Adjusted to match new type
       }
     }
   },
@@ -110,19 +121,6 @@ export const userApi = {
     }
   },
 
-  getMe: async (): Promise<ApiResponse<AuthResponse["user"]>> => {
-    try {
-      const response = await apiClient.get<ApiResponse<AuthResponse["user"]>>("/auth/me/")
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to get user profile",
-        data: null as any,
-      }
-    }
-  },
-
   getMyProfile: async (): Promise<ApiResponse<UserProfile>> => {
       try {
         const response = await apiClient.get<ApiResponse<UserProfile>>("/user/profile/me/")
@@ -150,28 +148,43 @@ export const userApi = {
   },
 
   updateProfile: async (
-      data: Partial<UserProfile> & { avatar?: File | string }
+      data: Partial<UserProfile> & { avatar?: File | string | null }
     ): Promise<ApiResponse<UserProfile>> => {
       try {
-        let payload: FormData | Partial<UserProfile> = data;
-        const headers: Record<string, string> = {};
+        const formData = new FormData();
 
-        if (data.avatar && data.avatar instanceof File) {
-          const formData = new FormData()
-          Object.keys(data).forEach(key => {
-            if (key === 'avatar' && data.avatar instanceof File) {
-              formData.append(key, data.avatar)
-            } else if (data[key as keyof typeof data] !== undefined && data[key as keyof typeof data] !== null) {
-              formData.append(key, data[key as keyof typeof data] as string | Blob);
+        Object.keys(data).forEach(key => {
+          const typedKey = key as keyof typeof data;
+          const value = data[typedKey];
+          const stringKey = String(key); // Ensure the key is a string for FormData
+
+          if (typedKey === 'avatar') {
+            if (value instanceof File) {
+              formData.append(stringKey, value);
             }
-          })
-          payload = formData
-        } else {
-          headers['Content-Type'] = 'application/json';
-        }
+            // If avatar is a string (URL) or null, we don't append it for FormData.
+          } else if (value !== undefined && value !== null) {
+            // Handle non-avatar fields
+            if (Array.isArray(value) || 
+                (typeof value === 'object' && value !== null && !((value as any) instanceof File)) ) {
+              // If value is an object (and not null) and not a File, or if it's an array, stringify it.
+              formData.append(stringKey, JSON.stringify(value));
+            } else if (!(value instanceof File)) {
+              // Primitives (string, number, boolean) should not be Files. Stringify them.
+              // This also handles if `value` was somehow a File and didn't meet the condition above.
+              formData.append(stringKey, String(value));
+            } 
+            // If value is a File and made it here (i.e., it wasn't an object or array that got stringified),
+            // it means it's a non-avatar File that we are choosing to stringify (becomes "[object File]") or skip.
+            // The `else if (!(value instanceof File))` will stringify it if it's not a file.
+            // If it *is* a file, it falls through and is currently skipped. This is probably safest for non-avatar files.
+          }
+        });
         
-        const response = await apiClient.patch<ApiResponse<UserProfile>>("/user/profile/me/", payload, { headers })
-        return response.data
+        // No explicit Content-Type header needed when sending FormData, 
+        // the browser/client will set it to multipart/form-data with the correct boundary.
+        const response = await apiClient.patch<ApiResponse<UserProfile>>("/user/profile/me/", formData);
+        return response.data;
       } catch (error: any) {
         return {
           status: "error",

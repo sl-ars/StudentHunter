@@ -68,11 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Update user state with refreshed data
         if (user) {
-          setUser({
-            ...user,
+          setUser((prevUser) => prevUser ? {
+            ...prevUser,
             company: userData.company,
             company_id: userData.company_id,
-          })
+            name: userData.name || prevUser.name,
+            avatar: userData.avatar || prevUser.avatar,
+          } : null);
           console.log('User info refreshed with new company data')
         }
       } else {
@@ -112,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (response.status === 'success' && response.data?.isValid && response.data?.user) {
           const userData = response.data.user
-          const role = userData.role
+          const role = userData.role as UserRole
           if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
             console.error('Invalid role:', role)
             setUser(null)
@@ -126,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: userData.id,
             email: userData.email,
             name: userData.name,
-            role: userData.role,
+            role: role,
             avatar: userData.avatar,
             company: userData.company,
             company_id: userData.company_id,
@@ -136,14 +138,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           // Redirect to appropriate page if on login
           if (pathname === '/login') {
-            redirectBasedOnRole(userData.role)
+            redirectBasedOnRole(role)
           }
         } else {
           // Token invalid, try to refresh
           const hasRefreshed = await refreshAccessToken()
           if (hasRefreshed) {
-            // Check auth again with new token
-            checkAuth()
+            // Check auth again with new token - MODIFIED LOGIC
+            const newToken = localStorage.getItem('access_token');
+            if (newToken) {
+              try {
+                const newResponse = await authApi.verifyToken(newToken);
+                if (newResponse.status === 'success' && newResponse.data?.isValid && newResponse.data?.user) {
+                  const userData = newResponse.data.user;
+                  const role = userData.role as UserRole;
+                  if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
+                    console.error('Invalid role after refresh:', role);
+                    setUser(null);
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                      router.push('/login');
+                    }
+                  } else {
+                    setUser({
+                      id: userData.id,
+                      email: userData.email,
+                      name: userData.name,
+                      role: role,
+                      avatar: userData.avatar,
+                      company: userData.company,
+                      company_id: userData.company_id,
+                      createdAt: new Date().toISOString(),
+                      isActive: true
+                    });
+                    if (pathname === '/login') {
+                      redirectBasedOnRole(role);
+                    }
+                  }
+                } else {
+                  // Verification of new token failed
+                  setUser(null)
+                  localStorage.removeItem('access_token')
+                  localStorage.removeItem('refresh_token')
+                  if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                    router.push('/login')
+                  }
+                }
+              } catch (e) {
+                // Error verifying new token
+                setUser(null)
+                localStorage.removeItem('access_token')
+                localStorage.removeItem('refresh_token')
+                if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                  router.push('/login')
+                }
+              }
+            } else {
+                // No new token found after refresh (should not happen if hasRefreshed is true)
+                setUser(null)
+                localStorage.removeItem('access_token')
+                localStorage.removeItem('refresh_token')
+                if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                  router.push('/login')
+                }
+            }
           } else {
             setUser(null)
             localStorage.removeItem('access_token')
@@ -158,8 +217,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token validation failed, try to refresh
         const hasRefreshed = await refreshAccessToken()
         if (hasRefreshed) {
-          // Check auth again with new token
-          checkAuth()
+          // Check auth again with new token - MODIFIED LOGIC
+          const newToken = localStorage.getItem('access_token');
+          if (newToken) {
+            try {
+              const newResponse = await authApi.verifyToken(newToken);
+              if (newResponse.status === 'success' && newResponse.data?.isValid && newResponse.data?.user) {
+                const userData = newResponse.data.user;
+                const role = userData.role as UserRole;
+                if (role !== 'admin' && role !== 'employer' && role !== 'campus' && role !== 'student') {
+                  console.error('Invalid role after refresh:', role);
+                  setUser(null);
+                  localStorage.removeItem('access_token');
+                  localStorage.removeItem('refresh_token');
+                  if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                    router.push('/login');
+                  }
+                } else {
+                  setUser({
+                    id: userData.id,
+                    email: userData.email,
+                    name: userData.name,
+                    role: role,
+                    avatar: userData.avatar,
+                    company: userData.company,
+                    company_id: userData.company_id,
+                    createdAt: new Date().toISOString(),
+                    isActive: true
+                  });
+                  if (pathname === '/login') {
+                    redirectBasedOnRole(role);
+                  }
+                }
+              } else {
+                // Verification of new token failed
+                setUser(null)
+                localStorage.removeItem('access_token')
+                localStorage.removeItem('refresh_token')
+                if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                  router.push('/login')
+                }
+              }
+            } catch (e) {
+              // Error verifying new token
+              setUser(null)
+              localStorage.removeItem('access_token')
+              localStorage.removeItem('refresh_token')
+              if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                router.push('/login')
+              }
+            }
+          } else {
+              // No new token found after refresh (should not happen if hasRefreshed is true)
+              setUser(null)
+              localStorage.removeItem('access_token')
+              localStorage.removeItem('refresh_token')
+              if (pathname !== '/login' && !pathname.startsWith('/public/')) {
+                router.push('/login')
+              }
+          }
         } else {
           setUser(null)
           localStorage.removeItem('access_token')
@@ -205,6 +321,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setUser({
           ...response.user,
+          id: response.user.id,
+          email: response.user.email,
+          name: response.user.name,
+          role: response.user.role as UserRole,
+          avatar: response.user.avatar,
+          company: response.user.company,
+          company_id: response.user.company_id,
           createdAt: new Date().toISOString(),
           isActive: true
         })
@@ -214,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.push(redirectTo)
           sessionStorage.removeItem("authRedirect")
         } else {
-          redirectBasedOnRole(response.user.role)
+          redirectBasedOnRole(response.user.role as UserRole)
         }
 
         return true
@@ -250,6 +373,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           setUser({
             ...loginResponse.user,
+            id: loginResponse.user.id,
+            email: loginResponse.user.email,
+            name: loginResponse.user.name,
+            role: loginResponse.user.role as UserRole,
+            avatar: loginResponse.user.avatar,
+            company: loginResponse.user.company,
+            company_id: loginResponse.user.company_id,
             createdAt: new Date().toISOString(),
             isActive: true
           })
@@ -259,7 +389,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             router.push(redirectTo)
             sessionStorage.removeItem("authRedirect")
           } else {
-            redirectBasedOnRole(loginResponse.user.role)
+            redirectBasedOnRole(loginResponse.user.role as UserRole)
           }
 
           return true

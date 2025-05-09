@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Resource, ResourceFile
+from resources.models import Resource, ResourceFile
 
 class ResourceFileInline(admin.TabularInline):
     model = ResourceFile

@@ -8,8 +8,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import ModerationLog, AdminNotification, AdminDashboardSetting
-from .serializers import (
+from admin_api.models import ModerationLog, AdminNotification, AdminDashboardSetting
+from admin_api.serializers import (
     ModerationLogSerializer, AdminNotificationSerializer, AdminDashboardSettingSerializer,
     UserAdminSerializer, JobAdminSerializer, CompanyAdminSerializer, 
     ApplicationAdminSerializer, AdminDashboardStatsSerializer
@@ -19,8 +19,8 @@ from companies.models import Company
 from applications.models import Application
 from django.db.models import Count, Q
 from django.contrib.contenttypes.models import ContentType
-from .models import SystemSettings
-from .serializers import SystemSettingsSerializer
+from admin_api.models import SystemSettings
+from admin_api.serializers import SystemSettingsSerializer
 
 User = get_user_model()
 

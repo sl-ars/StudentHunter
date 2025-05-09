@@ -109,3 +109,26 @@ class IsAdminRole(BasePermission):
 
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
+
+
+class IsOwnerOrEmployer(BasePermission):
+    """
+    Custom permission to allow:
+    - students to access only their own applications,
+    - employers to access applications for jobs they created,
+    - admins (staff) to access everything.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.is_staff:
+            return True
+
+        if user.role == 'student':
+            return obj.applicant == user
+
+        if user.role == 'employer':
+            return obj.job.created_by == user
+
+        return False

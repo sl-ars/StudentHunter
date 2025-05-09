@@ -10,8 +10,8 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from jobs.models import Job
 from applications.models import Application
 from companies.models import Company
-from .models import JobView, JobApplicationMetrics, EmployerMetrics
-from .serializers import JobViewSerializer, JobApplicationMetricsSerializer, EmployerMetricsSerializer
+from analytics.models import JobView, JobApplicationMetrics, EmployerMetrics
+from analytics.serializers import JobViewSerializer, JobApplicationMetricsSerializer, EmployerMetricsSerializer
 from django.db import models
 from users.models import EmployerProfile
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear, Cast

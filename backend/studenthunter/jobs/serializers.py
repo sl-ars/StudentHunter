@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Job
+from jobs.models import Job
 from companies.models import Company
 from applications.models import Application
 from django.db.models import Count

@@ -1,12 +1,18 @@
+export type UserRole = "student" | "employer" | "admin" | "campus";
+
 // Тип пользователя
 export interface User {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  role: "student" | "employer" | "admin";
-  is_active: boolean;
-  date_joined: string;
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  role: UserRole;
+  isActive?: boolean;
+  createdAt?: string;
+  avatar?: string;
+  company?: string;
+  company_id?: string;
 }
 
 // Типы для вакансий
@@ -127,4 +133,43 @@ export interface Company {
   social_links: Record<string, string> | null;
   company?: string;
   company_id?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  points?: number;
+  icon?: string;
+}
+
+export interface Education {
+  id: string;
+  university: string;
+  field: string;
+  degree: string;
+  start_date: string;
+  end_date: string;
+  gpa?: string;
+  description?: string;
+}
+
+export interface Experience {
+  id: string;
+  company: string;
+  position: string;
+  start_date: string;
+  end_date: string;
+  description?: string;
+  current?: boolean;
+}
+
+export interface UserProfile extends User { 
+  bio?: string;
+  phone?: string;
+  location?: string;
+  skills?: string[];
+  education?: Education[];
+  experience?: Experience[];
+  achievements?: Achievement[];
 } 

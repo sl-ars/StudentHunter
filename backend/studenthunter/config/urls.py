@@ -13,7 +13,6 @@ from users.views import CustomRefreshView, CustomTokenObtainPairView, CustomVeri
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/core/', include('core.urls')),
 
 
     # ── JWT ────────

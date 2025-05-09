@@ -1,6 +1,7 @@
 import logging
 from functools import wraps
 
+from django.contrib.auth.password_validation import validate_password
 from drf_spectacular.utils import (
     extend_schema, OpenApiParameter, OpenApiTypes,
     PolymorphicProxySerializer, extend_schema_view
@@ -15,23 +16,32 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import UntypedToken
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.settings import api_settings
 from django.db import transaction
 from core.utils import ok, fail
-from .models import CampusProfile, EmployerProfile, StudentProfile, Resume
-from .serializers import (
+from users.models import CampusProfile, EmployerProfile, StudentProfile, Resume
+from users.serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
     UserSerializer,
     TokenRefreshSerializer, TokenVerifySerializer, CampusProfileSerializer, EmployerProfileSerializer,
-    StudentProfileSerializer, ResumeSerializer, PublicProfileSerializer, VerifyTokenSerializer, RefreshSerializer
+    StudentProfileSerializer, ResumeSerializer, PublicProfileSerializer, VerifyTokenSerializer, RefreshSerializer,
+    ResumeListSerializer, UserSettingsSerializer
 )
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import UserSettings, CompanySettings
+from .serializers import UserSettingsSerializer, CompanySettingsSerializer
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
 
 @extend_schema(
     request=CustomTokenObtainPairSerializer,
@@ -56,7 +66,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             return fail(message=str(e), code=401)
 
 
-
 @extend_schema(
     request=VerifyTokenSerializer,
     responses={
@@ -78,6 +87,7 @@ class CustomVerifyView(APIView):
         if not payload.get("is_valid"):
             return ok({"is_valid": False}, message="Token invalid")
         return ok(payload, message="Token valid")
+
 
 @extend_schema(
     request=RefreshSerializer,
@@ -181,16 +191,19 @@ class RegisterViewSet(viewsets.ViewSet):
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
+
 @extend_schema_view(
     retrieve=extend_schema(
         summary="Retrieve a public user profile",
         description="Get public profile information for a user by their ID. Does not require authentication. Admin profiles and profiles of roles not explicitly listed (student, employer, campus) are not publicly accessible.",
         parameters=[
-            OpenApiParameter("pk", OpenApiTypes.INT, OpenApiParameter.PATH, description="A unique integer identifying the user.")
+            OpenApiParameter("pk", OpenApiTypes.INT, OpenApiParameter.PATH,
+                             description="A unique integer identifying the user.")
         ],
         responses={
             200: PublicProfileSerializer,
-            403: {"description": "Forbidden: Admin profiles are not public, or the profile type is not publicly viewable."},
+            403: {
+                "description": "Forbidden: Admin profiles are not public, or the profile type is not publicly viewable."},
             404: {"description": "User not found"}
         }
     )
@@ -200,7 +213,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
     lookup_field = 'pk'
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    # Component name for Polymorphic Serializer used in 'me' action
+    ME_PROFILE_SERIALIZER_COMPONENT_NAME = 'UserProfileMeResponse'
 
     def get_permissions(self):
         if self.action == 'retrieve':
@@ -225,24 +241,68 @@ class ProfileViewSet(viewsets.GenericViewSet):
         profile_instance, _ = profile_model.objects.get_or_create(user=user)
         return profile_instance, profile_serializer_class
 
+    @extend_schema(
+        summary="Get or update current user's profile",
+        description=(
+            "Retrieve or partially update the profile for the authenticated user. "
+            "The specific profile fields depend on the user's role (student, employer, campus, or admin)."
+        ),
+        tags=['users'],
+        methods=['GET', 'PATCH']
+    )
+    @extend_schema(methods=['GET'],
+        responses={
+            200: PolymorphicProxySerializer(
+                component_name=ME_PROFILE_SERIALIZER_COMPONENT_NAME,
+                serializers={
+                    'student': StudentProfileSerializer,
+                    'employer': EmployerProfileSerializer,
+                    'campus': CampusProfileSerializer,
+                    'admin': UserSerializer,
+                },
+                resource_type_field_name=None
+            ),
+            400: {"description": "Could not determine profile type for user."},
+            401: {"description": "Authentication credentials were not provided."},
+        }
+    )
+    @extend_schema(methods=['PATCH'],
+        request=PolymorphicProxySerializer( # For request body documentation
+            component_name='UserProfileMeUpdate',
+            serializers={
+                'student': StudentProfileSerializer,
+                'employer': EmployerProfileSerializer,
+                'campus': CampusProfileSerializer,
+                'admin': UserSerializer, # Admin might update basic user fields via UserSerializer
+            },
+            resource_type_field_name=None
+        ),
+        responses={
+            200: PolymorphicProxySerializer(
+                component_name=ME_PROFILE_SERIALIZER_COMPONENT_NAME, # Reuse for response
+                serializers={
+                    'student': StudentProfileSerializer,
+                    'employer': EmployerProfileSerializer,
+                    'campus': CampusProfileSerializer,
+                    'admin': UserSerializer,
+                },
+                resource_type_field_name=None
+            ),
+            400: {"description": "Validation error or could not determine profile type."},
+            401: {"description": "Authentication credentials were not provided."},
+        }
+    )
     @action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
         user = request.user
         target_instance, profile_serializer_class = self._get_profile_info(user)
 
         if not profile_serializer_class:
-            return Response({
-                "status": "error",
-                "message": "Could not determine profile type for user."
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return fail(message="Could not determine profile type for user.", code=status.HTTP_400_BAD_REQUEST)
 
         if request.method == "GET":
             serializer = profile_serializer_class(target_instance, context={'request': request})
-            return Response({
-                "status": "success",
-                "data": serializer.data,
-                "message": f"{user.role.capitalize()} profile retrieved successfully"
-            })
+            return ok(data=serializer.data, message=f"{user.role.capitalize()} profile retrieved successfully")
 
         elif request.method == "PATCH":
             data_for_serializer = request.data.copy()
@@ -250,8 +310,11 @@ class ProfileViewSet(viewsets.GenericViewSet):
             if 'avatar' in request.FILES:
                 user.avatar = request.FILES['avatar']
                 user.save(update_fields=['avatar'])
-                if user.role != "admin" and 'avatar' in data_for_serializer:
-                    del data_for_serializer['avatar']
+                # If avatar is handled separately, remove it from data to avoid serializer conflicts if 'avatar' is also a field in profile serializer.
+                # This depends on how BaseProfileSerializer handles 'avatar' source='user.avatar' during updates.
+                # For safety, if user.avatar is directly updated, it might be best to ensure it doesn't cause issues with serializer.
+                # The current BaseProfileSerializer seems to handle `user.avatar` update logic, so this might be redundant or could conflict.
+                # Let's assume BaseProfileSerializer handles it correctly. If not, data_for_serializer.pop('avatar', None) might be needed.
 
             serializer = profile_serializer_class(
                 target_instance,
@@ -263,56 +326,39 @@ class ProfileViewSet(viewsets.GenericViewSet):
             if serializer.is_valid():
                 serializer.save()
                 fresh_serializer = profile_serializer_class(target_instance, context={'request': request})
-                return Response({
-                    "status": "success",
-                    "data": fresh_serializer.data,
-                    "message": f"{user.role.capitalize()} profile updated successfully"
-                })
-            return Response({
-                "status": "error",
-                "data": {},
-                "message": "Validation error",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                return ok(data=fresh_serializer.data, message=f"{user.role.capitalize()} profile updated successfully")
+            return fail(message="Validation error", details=serializer.errors, code=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, pk=None):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({
-                "status": "error",
-                "message": "User not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+            return fail(message="User not found", code=status.HTTP_404_NOT_FOUND)
 
         if user.role == "admin":
-            return Response({
-                "status": "error",
-                "message": "Admin profiles are not publicly viewable"
-            }, status=status.HTTP_403_FORBIDDEN)
+            return fail(message="Admin profiles are not publicly viewable", code=status.HTTP_403_FORBIDDEN)
 
         if user.role not in ["student", "employer", "campus"]:
-            return Response({
-                "status": "error",
-                "message": f"Profiles of type '{user.role}' are not publicly viewable"
-            }, status=status.HTTP_403_FORBIDDEN)
+            return fail(message=f"Profiles of type '{user.role}' are not publicly viewable", code=status.HTTP_403_FORBIDDEN)
 
+        # For public profile view, we use PublicProfileSerializer as defined in @extend_schema_view
         serializer = PublicProfileSerializer(user, context={'request': request})
-        return Response({
-            "status": "success",
-            "data": serializer.data,
-            "message": "Public profile retrieved successfully"
-        })
+        return ok(data=serializer.data, message="Public profile retrieved successfully")
 
 
-@extend_schema(tags=['users'])
+@extend_schema(tags=['resumes'])
 class ResumeViewSet(viewsets.ModelViewSet):
-    serializer_class = ResumeSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'post', 'delete']
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         return Resume.objects.filter(student__user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ResumeListSerializer
+        return ResumeSerializer
 
     def perform_create(self, serializer):
         student_profile = self.request.user.student_profile
@@ -334,26 +380,13 @@ class ResumeViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data,
-            "message": "Resumes retrieved successfully"
-        })
+        return ok(data=serializer.data, message="Resumes retrieved successfully")
 
     @extend_schema(
         operation_id='upload_resume',
         summary="Upload resume",
         description="Upload a new resume",
-        request={
-            'multipart/form-data': {
-                'schema': {
-                    'type': 'object',
-                    'properties': {
-                        'file': {'type': 'string', 'format': 'binary'}
-                    }
-                }
-            }
-        },
+        request=ResumeSerializer,
         responses={
             201: ResumeSerializer,
             400: {'description': 'Validation error'}
@@ -361,27 +394,13 @@ class ResumeViewSet(viewsets.ModelViewSet):
     )
     def create(self, request, *args, **kwargs):
         if 'file' not in request.FILES:
-            return Response({
-                "status": "error",
-                "data": {},
-                "message": "No file provided",
-                "errors": {"file": ["This field is required."]}
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return fail(message="No file provided", details={"file": ["This field is required."]})
 
         serializer = self.get_serializer(data={'file': request.FILES['file']})
         if serializer.is_valid():
             self.perform_create(serializer)
-            return Response({
-                "status": "success",
-                "data": serializer.data,
-                "message": "Resume uploaded successfully"
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            "status": "error",
-            "data": {},
-            "message": "Validation error",
-            "errors": serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return ok(data=serializer.data, message="Resume uploaded successfully", code=status.HTTP_201_CREATED)
+        return fail(message="Validation error", details=serializer.errors)
 
     @extend_schema(
         operation_id='delete_resume',
@@ -394,44 +413,106 @@ class ResumeViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
-        return Response({
-            "status": "success",
-            "data": {},
-            "message": "Resume deleted successfully"
-        }, status=status.HTTP_200_OK)
+        return ok(data={}, message="Resume deleted successfully")
 
     @extend_schema(
-        operation_id='get_resume_download_url',
-        summary="Get resume URL",
-        description="Get a signed URL for downloading a resume",
+        operation_id='retrieve_resume',
+        summary="Retrieve a specific resume",
+        description="Get detailed information about a specific resume by its ID.",
         responses={
-            200: {
-                'type': 'object',
-                'properties': {
-                    'status': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'url': {'type': 'string', 'format': 'url'}
-                        }
-                    },
-                    'message': {'type': 'string'}
-                }
-            }
+            200: ResumeSerializer,
+            404: {"description": "Resume not found"}
         }
     )
-    @action(detail=True, methods=['get'])
-    def get_url(self, request, pk=None):
-        resume = self.get_object()
-        url = resume.get_resume_url()
-        if url:
-            return Response({
-                "status": "success",
-                "data": {"url": url},
-                "message": "Signed URL generated successfully"
-            })
-        return Response({
-            "status": "error",
-            "data": {},
-            "message": "Failed to generate signed URL"
-        }, status=status.HTTP_400_BAD_REQUEST)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+
+@extend_schema(tags=['users'])
+class UserSettingsViewSet(viewsets.GenericViewSet):
+    serializer_class = UserSettingsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        obj, _ = UserSettings.objects.get_or_create(user=self.request.user)
+        return obj
+
+    @extend_schema(
+        summary="Get or update current user's settings",
+        description="Retrieve or partially update the settings for the authenticated user.",
+        tags=['users'],
+        methods=['GET', 'PATCH'],
+    )
+    @extend_schema(methods=['GET'],
+        responses={
+            200: UserSettingsSerializer,
+            401: {"description": "Authentication credentials were not provided."},
+            403: {"description": "Permission denied."}
+        }
+    )
+    @extend_schema(methods=['PATCH'],
+        request=UserSettingsSerializer,
+        responses={
+            200: UserSettingsSerializer,
+            400: {"description": "Invalid data provided."},
+            401: {"description": "Authentication credentials were not provided."},
+            403: {"description": "Permission denied."}
+        }
+    )
+    @action(detail=False, methods=["get", "patch"], url_path="me")
+    def me(self, request):
+        instance = self.get_object()
+
+        if request.method == "GET":
+            serializer = self.serializer_class(instance)
+            return ok(serializer.data, message="User settings retrieved")
+
+        if request.method == "PATCH":
+            serializer = self.serializer_class(instance, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return ok(serializer.data, message="User settings updated")
+            return fail(message="Validation error", details=serializer.errors, code=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        summary="Change current user's password",
+        description="Allows the authenticated user to change their password.",
+        tags=['users'],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'old_password': {'type': 'string', 'format': 'password'},
+                    'new_password': {'type': 'string', 'format': 'password'}
+                },
+                'required': ['old_password', 'new_password']
+            }
+        },
+        responses={
+            200: {"description": "Password changed successfully"},
+            400: {"description": "Incorrect old password or invalid new password"},
+            401: {"description": "Authentication credentials were not provided."},
+            403: {"description": "Permission denied."}
+        }
+    )
+    @action(detail=False, methods=["post"], url_path="change-password")
+    def change_password(self, request):
+        user = request.user
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+
+        if not old_password or not new_password:
+            return fail(message="Both old_password and new_password are required.", code=status.HTTP_400_BAD_REQUEST)
+
+        if not user.check_password(old_password):
+            return fail(message="Incorrect current password", code=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return fail(message="Password validation failed", details=e.messages, code=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        return ok(message="Password changed successfully")

@@ -5,9 +5,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import Resource
-from .serializers import ResourceSerializer
-from .permissions import IsAdminOrReadOnly
+from resources.models import Resource
+from resources.serializers import ResourceSerializer
+from resources.permissions import IsAdminOrReadOnly
 
 @extend_schema(tags=['resources'])
 class ResourceViewSet(viewsets.ModelViewSet):

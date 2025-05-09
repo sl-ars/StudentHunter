@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Application
+from applications.models import Application
 from jobs.models import Job
 from django.contrib.auth import get_user_model
 
@@ -89,10 +89,26 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         model = Application
         fields = ['id', 'job', 'job_title', 'job_company', 'job_location', 'job_type',
                   'job_details', 'applicant', 'applicant_name', 'applicant_email', 
-                  'applicant_profile', 'status', 'status_history', 'cover_letter', 
+                  'applicant_profile', 'status', 'interview_status', 'status_history', 'cover_letter', 
                   'resume', 'created_at', 'updated_at', 'interview_date', 'notes']
-        read_only_fields = ['applicant', 'job', 'created_at', 'updated_at']
+        read_only_fields = ['applicant', 'job', 'created_at', 'updated_at', 
+                           'job_title', 'job_company', 'job_location', 'job_type', 
+                           'job_details', 'applicant_name', 'applicant_email', 
+                           'applicant_profile', 'status_history']
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            if request.user.role == 'student':
+                # Fields a student cannot edit directly on the application
+                student_read_only_fields = ['status', 'interview_status', 'interview_date', 'notes']
+                for field_name in student_read_only_fields:
+                    if field_name in self.fields:
+                        self.fields[field_name].read_only = True
+            # Employers/Admins can edit these fields (status, notes, interview_date etc.)
+            # No specific read_only changes needed here for them beyond what's in Meta
+
     def get_applicant_name(self, obj):
         return f"{obj.applicant.first_name} {obj.applicant.last_name}"
     

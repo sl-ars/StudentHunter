@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import Company
-from .serializers import CompanySerializer
+from companies.models import Company
+from companies.serializers import CompanySerializer
 from users.models import EmployerProfile
 
 @extend_schema(tags=['companies'])

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ModerationLog, AdminNotification, AdminDashboardSetting
+from admin_api.models import ModerationLog, AdminNotification, AdminDashboardSetting
 
 @admin.register(ModerationLog)
 class ModerationLogAdmin(admin.ModelAdmin):
