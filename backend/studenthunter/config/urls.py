@@ -29,8 +29,7 @@ urlpatterns = [
     path('api/resource/', include('resources.urls')),
     path('api/application/', include('applications.urls')),
     path('api/analytics/', include('analytics.urls')),
-
-
+    path('api/admin/', include('admin_api.urls')),
 ]
 
 

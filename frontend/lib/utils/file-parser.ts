@@ -21,9 +21,12 @@ export async function parseCSV(file: File): Promise<any[]> {
         const lines = csv.split("\n")
         const headers = lines[0].split(",").map((header) => header.trim().toLowerCase())
 
-        // Validate required headers
-        if (!headers.includes("name") || !headers.includes("email")) {
-          reject(new Error('CSV file must include "name" and "email" columns'))
+        // Validate required headers - either name or first_name should be present
+        const hasNameField = headers.includes("name")
+        const hasFirstNameField = headers.includes("first_name")
+        
+        if ((!hasNameField && !hasFirstNameField) || !headers.includes("email")) {
+          reject(new Error('CSV file must include either "name" or "first_name", and "email" columns'))
           return
         }
 
@@ -42,6 +45,17 @@ export async function parseCSV(file: File): Promise<any[]> {
               user[header] = values[index]
             }
           })
+
+          // Handle name vs first_name/last_name
+          if (hasNameField && !hasFirstNameField) {
+            // Если есть только name, сохраняем его как есть
+            // Бэкенд ожидает поле name
+          } else if (!hasNameField && hasFirstNameField) {
+            // Если есть first_name, но нет name - создаем name
+            const firstName = user.first_name || ""
+            const lastName = user.last_name || ""
+            user.name = `${firstName} ${lastName}`.trim()
+          }
 
           // Set default values
           if (!user.role) user.role = "student"
@@ -88,10 +102,20 @@ export async function parseExcel(file: File): Promise<any[]> {
 
         // Convert to JSON
         const jsonData = XLSX.utils.sheet_to_json(worksheet)
+        
+        if (jsonData.length === 0) {
+          reject(new Error("Excel file is empty or contains no valid data"))
+          return
+        }
 
-        // Validate required fields
-        if (jsonData.length === 0 || !("name" in jsonData[0]) || !("email" in jsonData[0])) {
-          reject(new Error('Excel file must include "name" and "email" columns'))
+        // Check for required fields
+        const firstRow = jsonData[0] as Record<string, any>
+        const hasNameField = "name" in firstRow || "Name" in firstRow
+        const hasFirstNameField = "first_name" in firstRow || "First Name" in firstRow
+        const hasEmailField = "email" in firstRow || "Email" in firstRow
+        
+        if ((!hasNameField && !hasFirstNameField) || !hasEmailField) {
+          reject(new Error('Excel file must include either "name" or "first_name", and "email" columns'))
           return
         }
 
@@ -100,9 +124,17 @@ export async function parseExcel(file: File): Promise<any[]> {
           // Convert all keys to lowercase
           const user: Record<string, any> = {}
           Object.keys(row).forEach((key) => {
-            user[key.toLowerCase()] = row[key]
+            user[key.toLowerCase().replace(/\s/g, '_')] = row[key]
           })
 
+          // Handle name vs first_name/last_name
+          if (!user.name && (user.first_name || user.last_name)) {
+            // Если есть first_name/last_name, но нет name - создаем name
+            const firstName = user.first_name || ""
+            const lastName = user.last_name || ""
+            user.name = `${firstName} ${lastName}`.trim()
+          }
+          
           // Set default values
           if (!user.role) user.role = "student"
           if (!user.password) user.password = generateRandomPassword(10)

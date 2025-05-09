@@ -135,6 +135,7 @@ class EmployerProfile(models.Model):
     industry = models.CharField(max_length=100)
     website = models.URLField(blank=True, null=True)
     description = models.TextField(blank=True)
+    company = models.ForeignKey('companies.Company', on_delete=models.SET_NULL, null=True, blank=True, related_name="employer_profiles")
 
     def __str__(self):
         return f"Employer: {self.company_name}"

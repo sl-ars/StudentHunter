@@ -11,9 +11,16 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { adminApi } from "@/lib/api/admin"
 import { isMockEnabled } from "@/lib/utils/config"
-import { mockAdminUsers } from "@/lib/mock-data/admin"
+import { mockAdminUsers, mockAdminCompanies } from "@/lib/mock-data/admin"
 import { ArrowLeft, Save } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
+
+// Интерфейс для компании
+interface AdminCompany {
+  id: string;
+  name: string;
+  industry: string;
+}
 
 export default function EditUserPage() {
   const { id } = useParams()
@@ -22,11 +29,16 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [companies, setCompanies] = useState<AdminCompany[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(false)
   const [user, setUser] = useState({
     name: "",
     email: "",
     role: "",
-    status: "",
+    is_active: true,
+    company: "",
+    company_id: "",
+    university: ""
   })
 
   useEffect(() => {
@@ -41,9 +53,16 @@ export default function EditUserPage() {
           data = { data: mockUser, status: "success" }
         } else {
           // Use real API
-          data = await adminApi.getUserById(id as string)
+          data = await adminApi.getUser(id as string)
         }
+        console.log("Fetched user data:", data.data)
+        
         setUser(data.data)
+        
+        // Если пользователь работодатель, загрузим список компаний
+        if (data.data.role === "employer") {
+          fetchCompanies();
+        }
       } catch (err) {
         console.error("Error fetching user:", err)
         setError("Failed to load user details. Please try again later.")
@@ -57,6 +76,44 @@ export default function EditUserPage() {
     }
   }, [id])
 
+  // Загрузка списка компаний
+  const fetchCompanies = async () => {
+    try {
+      setLoadingCompanies(true);
+      let companiesData;
+      
+      if (isMockEnabled()) {
+        // Use mock data
+        companiesData = {
+          data: mockAdminCompanies,
+          status: "success"
+        };
+      } else {
+        // Fetch real companies from API
+        companiesData = await adminApi.getCompanies({
+          limit: 100 // Get up to 100 companies
+        });
+      }
+      
+      if (companiesData.status === "success" && Array.isArray(companiesData.data)) {
+        setCompanies(companiesData.data.map((company: any) => ({
+          id: company.id,
+          name: company.name,
+          industry: company.industry
+        })));
+      }
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load companies.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setUser((prev) => ({ ...prev, [name]: value }))
@@ -64,11 +121,24 @@ export default function EditUserPage() {
 
   const handleSelectChange = (name: string, value: string) => {
     setUser((prev) => ({ ...prev, [name]: value }))
+    
+    // Если изменилась роль на employer, загружаем список компаний
+    if (name === "role" && value === "employer") {
+      fetchCompanies();
+    }
+  }
+  
+  const handleActiveChange = (value: string) => {
+    setUser((prev) => ({ 
+      ...prev, 
+      is_active: value === 'active' // Преобразуем строковое значение в boolean
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
+    
     try {
       if (isMockEnabled()) {
         // Mock update
@@ -80,14 +150,36 @@ export default function EditUserPage() {
         router.push("/admin/users")
         return
       }
-
-      // Real API update
-      await adminApi.updateUser(id as string, user)
-      toast({
-        title: "User updated",
-        description: "The user has been successfully updated.",
-      })
-      router.push("/admin/users")
+      
+      // Create a new object with all the data we want to send
+      const dataToUpdate = {
+        ...user,
+      }
+      
+      console.log("Sending data to backend:", dataToUpdate)
+      
+      // For debugging: Display what we're sending to the API
+      console.log('DEBUG - Submitting user update with data:', JSON.stringify(dataToUpdate))
+      
+      // Отправляем обновления на сервер
+      const response = await adminApi.updateUser(id as string, dataToUpdate)
+      
+      console.log('DEBUG - API Response:', JSON.stringify(response))
+      
+      if (response.status === "success") {
+        toast({
+          title: "User updated",
+          description: "The user has been successfully updated.",
+        })
+        router.push("/admin/users")
+      } else {
+        setError(response.message || "Failed to update user. Please try again.")
+        toast({
+          title: "Error",
+          description: response.message || "Failed to update user. Please try again.",
+          variant: "destructive",
+        })
+      }
     } catch (err) {
       console.error("Error updating user:", err)
       setError("Failed to update user. Please try again.")
@@ -131,7 +223,7 @@ export default function EditUserPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">Name</Label>
                 <Input id="name" name="name" value={user.name} onChange={handleChange} required />
               </div>
 
@@ -148,7 +240,7 @@ export default function EditUserPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="employer">Employer</SelectItem>
                     <SelectItem value="student">Student</SelectItem>
                     <SelectItem value="campus">Campus</SelectItem>
                   </SelectContent>
@@ -157,18 +249,62 @@ export default function EditUserPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <Select value={user.status} onValueChange={(value) => handleSelectChange("status", value)}>
+                <Select value={user.is_active ? 'active' : 'inactive'} onValueChange={handleActiveChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              
+              {/* Поле для выбора компании (только для employer) */}
+              {user.role === "employer" && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Select 
+                    value={user.company_id} 
+                    onValueChange={(value) => {
+                      const selectedCompany = companies.find(c => c.id === value);
+                      handleSelectChange("company_id", value);
+                      handleSelectChange("company", selectedCompany?.name || "");
+                      console.log("Selected company:", value, selectedCompany?.name);
+                    }}
+                    disabled={loadingCompanies}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select a company"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name} ({company.industry})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {user.company && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Current company: {user.company}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Поле для университета (только для student) */}
+              {user.role === "student" && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="university">University</Label>
+                  <Input 
+                    id="university" 
+                    name="university" 
+                    value={user.university || ""} 
+                    onChange={handleChange} 
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3">

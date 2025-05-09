@@ -39,81 +39,178 @@ export interface CompaniesResponse {
 
 // Legacy API using axios directly
 export const companiesApi = {
-  getCompanies: async (filters: CompanyFilters = {}): Promise<AxiosResponse<AxiosApiResponse<CompanyListResponse>>> => {
-    const response = await axios.get<AxiosApiResponse<CompanyListResponse>>("/company/", { params: filters })
-    return response
+  getCompanies: async (filters: CompanyFilters = {}) => {
+    try {
+      const response = await apiClient.get('/company/', { params: filters });
+      return {
+        status: 'success',
+        message: 'Companies retrieved successfully',
+        data: response.data.results || []
+      };
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      // If mock is enabled, return mock data
+      if (isMockEnabled()) {
+        return {
+          status: 'success',
+          message: 'Companies retrieved successfully (mock)',
+          data: [
+            { id: '1', name: 'Google', industry: 'Technology' },
+            { id: '2', name: 'Microsoft', industry: 'Technology' },
+            { id: '3', name: 'Apple', industry: 'Technology' },
+            { id: '4', name: 'Amazon', industry: 'E-Commerce' },
+            { id: '5', name: 'Facebook', industry: 'Social Media' }
+          ]
+        };
+      }
+      return {
+        status: 'error',
+        message: 'Failed to retrieve companies',
+        data: []
+      };
+    }
   },
 
-  getCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.get<AxiosApiResponse<Company>>(`/company/${id}/`)
-    return response
+  getCompany: async (id: string) => {
+    try {
+      const response = await apiClient.get(`/company/${id}/`);
+      return {
+        status: 'success',
+        message: 'Company retrieved successfully',
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error fetching company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to retrieve company',
+        data: null
+      };
+    }
   },
 
-  createCompany: async (companyData: Partial<Company>): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.post<AxiosApiResponse<Company>>("/company/", companyData)
-    return response
+  createCompany: async (companyData: Partial<Company>) => {
+    try {
+      const response = await apiClient.post('/company/', companyData);
+      return {
+        status: 'success',
+        message: 'Company created successfully',
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error creating company:', error);
+      return {
+        status: 'error',
+        message: 'Failed to create company',
+        data: null
+      };
+    }
   },
 
-  updateCompany: async (
-    id: string,
-    companyData: Partial<Company>,
-  ): Promise<AxiosResponse<AxiosApiResponse<Company>>> => {
-    const response = await axios.put<AxiosApiResponse<Company>>(`/company/${id}/`, companyData)
-    return response
+  updateCompany: async (id: string, companyData: Partial<Company>) => {
+    try {
+      const response = await apiClient.put(`/company/${id}/`, companyData);
+      return {
+        status: 'success',
+        message: 'Company updated successfully',
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error updating company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to update company',
+        data: null
+      };
+    }
   },
 
-  deleteCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<{ success: boolean }>>> => {
-    const response = await axios.delete<AxiosApiResponse<{ success: boolean }>>(`/company/${id}/`)
-    return response
+  deleteCompany: async (id: string) => {
+    try {
+      const response = await apiClient.delete(`/company/${id}/`);
+      return {
+        status: 'success',
+        message: 'Company deleted successfully',
+        data: { success: true }
+      };
+    } catch (error) {
+      console.error(`Error deleting company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to delete company',
+        data: { success: false }
+      };
+    }
   },
 
   // Company logo
-  uploadLogo: async (id: string, file: File): Promise<AxiosResponse<AxiosApiResponse<{ url: string }>>> => {
-    const formData = new FormData()
-    formData.append("logo", file)
+  uploadLogo: async (id: string, file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
 
-    const response = await axios.post<AxiosApiResponse<{ url: string }>>(`/company/${id}/logo/`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    return response
+      const response = await apiClient.post(`/company/${id}/logo/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      
+      return {
+        status: 'success',
+        message: 'Logo uploaded successfully',
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error uploading logo for company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to upload logo',
+        data: null
+      };
+    }
   },
 
   // Company verification
-  verifyCompany: async (id: string): Promise<AxiosResponse<AxiosApiResponse<{ success: boolean }>>> => {
-    const response = await axios.post<AxiosApiResponse<{ success: boolean }>>(`/company/${id}/verify/`, {})
-    return response
+  verifyCompany: async (id: string) => {
+    try {
+      const response = await apiClient.post(`/company/${id}/verify/`, {});
+      return {
+        status: 'success',
+        message: 'Company verified successfully',
+        data: { success: true }
+      };
+    } catch (error) {
+      console.error(`Error verifying company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to verify company',
+        data: { success: false }
+      };
+    }
   },
 
-  // Company jobs
-  // getCompanyJobs: async (id: string): Promise<AxiosResponse<AxiosApiResponse<JobListResponse>>> => {
-  //   const response = await axios.get<AxiosApiResponse<JobListResponse>>(`/companies/${id}/jobs/`)
-  //   return response
-  // },
-
   // Company stats
-  getCompanyStats: async (
-    id: string,
-  ): Promise<
-    AxiosResponse<
-      AxiosApiResponse<{
-        views: number
-        applications: number
-        followers: number
-        hires: number
-      }>
-    >
-  > => {
-    const response = await axios.get<
-      AxiosApiResponse<{
-        views: number
-        applications: number
-        followers: number
-        hires: number
-      }>
-    >(`/company/${id}/stats/`)
-    return response
+  getCompanyStats: async (id: string) => {
+    try {
+      const response = await apiClient.get(`/company/${id}/stats/`);
+      return {
+        status: 'success',
+        message: 'Company stats retrieved successfully',
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error fetching stats for company ${id}:`, error);
+      return {
+        status: 'error',
+        message: 'Failed to retrieve company stats',
+        data: {
+          views: 0,
+          applications: 0,
+          followers: 0,
+          hires: 0
+        }
+      };
+    }
   },
 }
 

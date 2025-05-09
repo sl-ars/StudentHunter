@@ -3,6 +3,7 @@ import type { ApiResponse } from "./client"
 import type { Job } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
 import { mockJobs } from "@/lib/mock-data/jobs"
+import axios from 'axios'
 
 // Combine all interfaces from both files
 export interface JobFilters {
@@ -510,4 +511,16 @@ export const jobApi = {
       }
     }
   },
+}
+
+export interface JobsQueryParams {
+  page?: number
+  limit?: number
+  search?: string
+  type?: string
+  industry?: string
+  location?: string
+  is_active?: boolean
+  featured?: boolean
+  ordering?: string
 }

@@ -14,6 +14,273 @@ from .models import JobView, JobApplicationMetrics, EmployerMetrics
 from .serializers import JobViewSerializer, JobApplicationMetricsSerializer, EmployerMetricsSerializer
 from django.db import models
 from users.models import EmployerProfile
+from django.db.models.functions import TruncDay, TruncMonth, TruncYear, Cast
+from django.db.models import DateField, Count
+
+@extend_schema(
+    tags=['analytics'],
+    summary="Retrieve Employer Analytics Data",
+    description="Provides comprehensive analytics data for employers including job statistics, application trends, and performance metrics."
+)
+class EmployerAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name='period', description='Time period for analytics aggregation (e.g., "week", "month", "year"). Default is "month".', required=False, type=OpenApiTypes.STR, enum=['week', 'month', 'year'])
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'status': {'type': 'string'},
+                    'message': {'type': 'string'},
+                    'data': {'type': 'object'}
+                }
+            },
+            403: {'description': 'Access denied if user is not an employer.'},
+            404: {'description': 'Employer profile not found.'}
+        }
+    )
+    def get(self, request):
+        try:
+            # Check if user is an employer
+            if request.user.role != 'employer':
+                return Response({
+                    "status": "error",
+                    "message": "Access denied. Only employers can access this data.",
+                    "data": None
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            period = request.query_params.get('period', 'month')
+            now = timezone.now()
+
+            # Set date range based on period
+            if period == 'week':
+                start_date = now - timedelta(days=7)
+                trunc_function = TruncDay
+            elif period == 'month':
+                start_date = now - timedelta(days=30)
+                trunc_function = TruncDay
+            elif period == 'year':
+                start_date = now - timedelta(days=365)
+                trunc_function = TruncMonth
+            else:
+                start_date = now - timedelta(days=30)
+                trunc_function = TruncDay
+
+            # Initialize data structures
+            application_stats_data = []
+            job_views_data = []
+            job_statuses_data = []
+            application_statuses_data = []
+            popular_jobs_data = []
+            
+            try:
+                # Get jobs created by this employer
+                jobs = Job.objects.filter(created_by=request.user)
+                total_jobs = jobs.count()
+                active_jobs = jobs.filter(is_active=True).count()
+                
+                # Get detailed job status counts
+                filled_jobs = jobs.filter(status='filled').count()
+                draft_jobs = jobs.filter(status='draft').count()
+                archived_jobs = jobs.filter(status='archived').count()
+                expired_jobs = jobs.filter(status='expired').count()
+            except Exception as e:
+                print(f"Error getting job data: {str(e)}")
+                return Response({
+                    "status": "error",
+                    "message": f"Error retrieving job data: {str(e)}",
+                    "data": None
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            try:
+                # Get applications for employer's jobs
+                applications = Application.objects.filter(job__in=jobs)
+                total_applications = applications.count()
+                pending_applications = applications.filter(status='pending').count()
+                reviewing_applications = applications.filter(status='reviewing').count()
+                accepted_applications = applications.filter(status='accepted').count()
+                rejected_applications = applications.filter(status='rejected').count()
+                
+                # Get interviews data
+                interviews_scheduled = applications.filter(status='interviewed', interview_date__isnull=False).count()
+                interviews_completed = applications.filter(status='interviewed', interview_date__lt=now).count()
+                interviews_canceled = applications.filter(status='canceled', interview_date__isnull=False).count()
+            except Exception as e:
+                print(f"Error getting application data: {str(e)}")
+                return Response({
+                    "status": "error",
+                    "message": f"Error retrieving application data: {str(e)}",
+                    "data": None
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            try:
+                # Get real view counts if available
+                job_views = JobView.objects.filter(job__in=jobs).count()
+            except Exception as e:
+                print(f"Error getting job view count: {str(e)}")
+                job_views = 0
+            
+            try:
+                # Application stats by date (real data)
+                application_stats = Application.objects.filter(
+                    job__in=jobs,
+                    created_at__gte=start_date
+                ).annotate(
+                    date=trunc_function('created_at')
+                ).values('date').annotate(
+                    applications=Count('id')
+                ).order_by('date')
+                
+                application_stats_data = [
+                    {
+                        "date": item['date'].strftime("%Y-%m-%d") if item['date'] else "",
+                        "applications": item['applications']
+                    }
+                    for item in application_stats
+                ]
+            except Exception as e:
+                print(f"Error getting application stats: {str(e)}")
+                application_stats_data = []
+            
+            try:
+                # Job views by date (real data if available)
+                job_view_stats = JobView.objects.filter(
+                    job__in=jobs,
+                    viewed_at__gte=start_date
+                ).annotate(
+                    date=trunc_function('viewed_at')
+                ).values('date').annotate(
+                    views=Count('id')
+                ).order_by('date')
+                
+                job_views_data = [
+                    {
+                        "date": item['date'].strftime("%Y-%m-%d") if item['date'] else "",
+                        "views": item['views']
+                    }
+                    for item in job_view_stats
+                ]
+            except Exception as e:
+                print(f"Error getting job view stats: {str(e)}")
+                job_views_data = []
+            
+            try:
+                # Job status breakdown (real data)
+                job_statuses_data = [
+                    {"name": "Active", "value": active_jobs},
+                    {"name": "Filled", "value": filled_jobs},
+                    {"name": "Draft", "value": draft_jobs}
+                ]
+                
+                # Add archived and expired jobs if there are any
+                if archived_jobs > 0:
+                    job_statuses_data.append({"name": "Archived", "value": archived_jobs})
+                if expired_jobs > 0:
+                    job_statuses_data.append({"name": "Expired", "value": expired_jobs})
+                
+                # Application status breakdown (real data)
+                application_statuses_data = [
+                    {"name": "Pending", "value": pending_applications},
+                    {"name": "Reviewing", "value": reviewing_applications},
+                    {"name": "Accepted", "value": accepted_applications},
+                    {"name": "Rejected", "value": rejected_applications}
+                ]
+            except Exception as e:
+                print(f"Error generating status data: {str(e)}")
+                # Use empty arrays if there was an error
+                job_statuses_data = []
+                application_statuses_data = []
+            
+            try:
+                # Popular jobs (real data, based on views and applications)
+                popular_jobs_data = []
+                
+                # Get view counts for each job
+                job_view_counts = {}
+                job_view_count_data = JobView.objects.filter(job__in=jobs).values('job').annotate(
+                    total_views=Count('id')
+                )
+                for item in job_view_count_data:
+                    job_view_counts[item['job']] = item['total_views']
+                
+                # Get application counts for each job
+                job_application_counts = {}
+                job_app_counts = Application.objects.filter(job__in=jobs).values('job').annotate(
+                    total_applications=Count('id')
+                )
+                for item in job_app_counts:
+                    job_application_counts[item['job']] = item['total_applications']
+                
+                # Get the 5 most viewed/applied to jobs
+                for job in jobs.order_by('-created_at')[:5]:
+                    views = job_view_counts.get(job.id, 0)
+                    applications = job_application_counts.get(job.id, 0)
+                    conversion_rate = round((applications / views * 100) if views > 0 else 0, 1)
+                    
+                    popular_jobs_data.append({
+                        "id": job.id,
+                        "title": job.title,
+                        "views": views,
+                        "applications": applications,
+                        "conversionRate": conversion_rate
+                    })
+            except Exception as e:
+                print(f"Error generating popular jobs data: {str(e)}")
+                popular_jobs_data = []
+            
+            # Format response data in exactly the structure expected by the frontend
+            response_data = {
+                "stats": {
+                    "jobs": {
+                        "total": total_jobs,
+                        "active": active_jobs,
+                        "filled": filled_jobs,
+                        "draft": draft_jobs,
+                        "views": job_views
+                    },
+                    "applications": {
+                        "total": total_applications,
+                        "pending": pending_applications,
+                        "reviewing": reviewing_applications,
+                        "accepted": accepted_applications,
+                        "rejected": rejected_applications
+                    },
+                    "clicks": {
+                        "total": job_views,
+                        "applied": total_applications,
+                        "applyRate": float(total_applications) / job_views if job_views > 0 else 0
+                    },
+                    "interviews": {
+                        "scheduled": interviews_scheduled,
+                        "completed": interviews_completed,
+                        "canceled": interviews_canceled
+                    }
+                },
+                "analytics": {
+                    "jobViews": job_views_data,
+                    "applicationStats": application_stats_data,
+                    "applicationStatuses": application_statuses_data,
+                    "jobStatusesData": job_statuses_data,
+                    "popularJobs": popular_jobs_data
+                }
+            }
+
+            return Response({
+                "status": "success",
+                "message": "Analytics data retrieved successfully",
+                "data": response_data
+            })
+            
+        except Exception as e:
+            print(f"Error in analytics endpoint: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": f"Error retrieving analytics data: {str(e)}",
+                "data": None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @extend_schema(
     tags=['analytics'],

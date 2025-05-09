@@ -1,44 +1,27 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { employerApi } from "@/lib/api"
+import { jobsApi } from "@/lib/api/jobs"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/contexts/auth-context"
 
-export default function NewJobPage() {
+export default function AdminNewJobPage() {
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const { refreshUserInfo } = useAuth()
-
-  // Refresh user information when page loads to get latest company data
-  useEffect(() => {
-    const refreshData = async () => {
-      try {
-        console.log("Refreshing user data to get latest company information...")
-        await refreshUserInfo()
-        console.log("User data refreshed for job creation")
-      } catch (error) {
-        console.error("Error refreshing user data:", error)
-      }
-    }
-    
-    refreshData()
-  }, [refreshUserInfo])
 
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)
     try {
-      await employerApi.createJob(formData)
+      await jobsApi.createJob(formData)
       toast({
         title: "Success",
         description: "Job posting created successfully",
       })
-      router.push("/employer/jobs")
+      router.push("/admin/jobs")
     } catch (error) {
       console.error("Error creating job:", error)
       toast({
@@ -59,10 +42,10 @@ export default function NewJobPage() {
     <div className="container py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Create New Job Posting</h1>
-          <p className="text-muted-foreground">Post a new job opening for your company</p>
+          <h1 className="text-2xl font-bold tracking-tight">Admin: Create New Job</h1>
+          <p className="text-muted-foreground">Add a new job posting to the platform</p>
         </div>
-        <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+        <Button variant="outline" onClick={handleCancel}>
           Cancel
         </Button>
       </div>
@@ -70,12 +53,16 @@ export default function NewJobPage() {
       <Card>
         <CardHeader>
           <CardTitle>Job Details</CardTitle>
-          <CardDescription>Fill in the details for your new job posting</CardDescription>
+          <CardDescription>Fill in the details of the new job posting</CardDescription>
         </CardHeader>
         <CardContent>
-          <JobPostingForm onSubmit={handleSubmit} />
+          <JobPostingForm
+            onSubmit={handleSubmit}
+            initialData={null}
+            isAdmin={true}
+          />
         </CardContent>
       </Card>
     </div>
   )
-}
+} 
