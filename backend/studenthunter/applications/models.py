@@ -19,6 +19,8 @@ class Application(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     interview_date = models.DateTimeField(null=True, blank=True)
+    interview_complete = models.BooleanField(default=False)
+    interview_canceled = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
     class Meta:

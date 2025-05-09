@@ -282,7 +282,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def for_my_jobs(self, request):
-        """Получение списка заявок на вакансии текущего работодателя."""
+        """Get a list of applications for the current employer's jobs."""
         if request.user.role != 'employer':
             return Response(
                 {'error': 'Only employers can view applications for their jobs'},
@@ -291,18 +291,24 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         
         applications = Application.objects.filter(job__created_by=request.user)
         
-        # Фильтрация по статусу
+        # Filter by status
         status_filter = request.query_params.get('status')
         if status_filter:
             applications = applications.filter(status=status_filter)
         
-        # Фильтрация по вакансии
+        # Filter by job
         job_filter = request.query_params.get('job_id')
         if job_filter:
             applications = applications.filter(job_id=job_filter)
         
         serializer = self.get_serializer(applications, many=True)
-        return Response(serializer.data)
+        
+        # Format response to match frontend expectations
+        return Response({
+            'status': 'success',
+            'data': serializer.data,
+            'message': 'Applications retrieved successfully'
+        })
 
     @extend_schema(
         summary="Application statistics",

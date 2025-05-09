@@ -12,16 +12,36 @@ class ApplicationSerializer(serializers.ModelSerializer):
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
     applicant_profile = serializers.SerializerMethodField(read_only=True)
     
+    # Fields needed by frontend
+    name = serializers.SerializerMethodField(read_only=True)
+    position = serializers.SerializerMethodField(read_only=True)
+    date = serializers.SerializerMethodField(read_only=True)
+    
     class Meta:
         model = Application
         fields = ['id', 'job', 'job_title', 'job_company', 'applicant', 'applicant_name', 
                   'applicant_email', 'applicant_profile', 'status', 'cover_letter', 
-                  'resume', 'created_at', 'updated_at', 'interview_date', 'notes']
+                  'resume', 'created_at', 'updated_at', 'interview_date', 'notes',
+                  'name', 'position', 'date']
         read_only_fields = ['applicant', 'applicant_name', 'applicant_email', 'applicant_profile', 
-                           'job_title', 'job_company', 'created_at', 'updated_at']
+                           'job_title', 'job_company', 'created_at', 'updated_at',
+                           'name', 'position', 'date']
     
     def get_applicant_name(self, obj):
+        if hasattr(obj.applicant, 'name') and obj.applicant.name:
+            return obj.applicant.name
         return f"{obj.applicant.first_name} {obj.applicant.last_name}"
+    
+    def get_name(self, obj):
+        if hasattr(obj.applicant, 'name') and obj.applicant.name:
+            return obj.applicant.name
+        return f"{obj.applicant.first_name} {obj.applicant.last_name}"
+    
+    def get_position(self, obj):
+        return obj.job.title
+    
+    def get_date(self, obj):
+        return obj.created_at.strftime('%Y-%m-%d')
     
     def get_applicant_profile(self, obj):
         # Возвращает базовую информацию о профиле соискателя
