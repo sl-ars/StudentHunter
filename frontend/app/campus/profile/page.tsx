@@ -42,9 +42,9 @@ export default function CampusProfilePage() {
     const fetchProfile = async () => {
       try {
         setLoading(true)
-        const response = await userApi.getProfile(USER_ROLES.CAMPUS)
-        setProfileData(response)
-        const { percentage, missingFields } = calculateProfileCompletion(response)
+        const response = await userApi.getMyProfile()
+        setProfileData(response.data)
+        const { percentage, missingFields } = calculateProfileCompletion(response.data)
         setProfileCompletion(percentage)
         setMissingFields(missingFields)
       } catch (error) {
@@ -74,7 +74,7 @@ export default function CampusProfilePage() {
 
     try {
       setSaving(true)
-      await userApi.updateProfile(USER_ROLES.CAMPUS, profileData)
+      await userApi.updateProfile(profileData)
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -115,7 +115,6 @@ export default function CampusProfilePage() {
                     <AvatarUpload
                       currentAvatar={profileData?.avatar}
                       onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
-                      role={USER_ROLES.CAMPUS}
                     />
                     <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
                     <p className="text-muted-foreground text-center">Campus</p>

@@ -2,24 +2,26 @@ import apiClient from "./client"
 import type { ApiResponse } from "./client"
 import type { User, UserProfile, Education, Experience } from "@/lib/types"
 import { USER_ROLES, UserRole } from "@/lib/constants/roles"
-import { apiClient as apiClientTypes } from "./api-client"
 
 interface AuthResponse {
   user: User
   token: string
 }
 
-function getProfileUrlByRole(role: UserRole): string {
-  if (!Object.values(USER_ROLES).includes(role)) {
-    throw new Error(`Unsupported role: ${role}`)
-  }
-  return `/user/profile/${role}/`
+// Interface for the public user profile data
+export interface PublicUserProfileData {
+  id: string | number;
+  full_name: string;
+  role: UserRole;
+  avatar?: string; // URL to avatar
+  location?: string;
+  description?: string;
 }
 
 export const userApi = {
   login: async (email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> => {
     try {
-      const response = await apiClient.post<ApiResponse<{ user: User; token: string }>>("/auth/token/", {
+      const response = await apiClient.post<ApiResponse<{ user: User; token: string }>>("/auth/login/", {
         email,
         password,
       })
@@ -74,7 +76,13 @@ export const userApi = {
         refresh: refreshToken,
       })
 
-      localStorage.setItem("access_token", response.data.access)
+      // Corrected access based on ApiResponse structure which typically wraps data
+      if (response.data && response.data.data && typeof response.data.data.access === 'string') {
+        localStorage.setItem("access_token", response.data.data.access)
+      } else if (response.data && typeof (response.data as any).access === 'string') {
+        // Fallback if structure is flatter, though less likely given other examples
+        localStorage.setItem("access_token", (response.data as any).access);
+      }
 
       return response.data
     } catch (error: any) {
@@ -115,53 +123,59 @@ export const userApi = {
     }
   },
 
-  getProfile: async (role: UserRole): Promise<ApiResponse<UserProfile>> => {
+  getMyProfile: async (): Promise<ApiResponse<UserProfile>> => {
       try {
-        const url = getProfileUrlByRole(role)
-        const response = await apiClient.get<ApiResponse<UserProfile>>(url)
+        const response = await apiClient.get<ApiResponse<UserProfile>>("/user/profile/me/")
         return response.data
       } catch (error: any) {
         return {
           status: "error",
-          message: error.message || "Failed to get profile",
+          message: error.message || "Failed to get your profile",
           data: null as any,
         }
       }
     },
 
-   updateProfile: async (
-      role: UserRole,
-      data: Partial<UserProfile>
+  getPublicUserProfile: async (userId: string | number): Promise<ApiResponse<PublicUserProfileData>> => {
+    try {
+      const response = await apiClient.get<ApiResponse<PublicUserProfileData>>(`/user/profile/${userId}/`)
+      return response.data
+    } catch (error: any) {
+      return {
+        status: "error",
+        message: error.message || "Failed to get public user profile",
+        data: null as any,
+      }
+    }
+  },
+
+  updateProfile: async (
+      data: Partial<UserProfile> & { avatar?: File | string }
     ): Promise<ApiResponse<UserProfile>> => {
       try {
-        const url = getProfileUrlByRole(role)
-        const response = await apiClient.patch<ApiResponse<UserProfile>>(url, data)
+        let payload: FormData | Partial<UserProfile> = data;
+        const headers: Record<string, string> = {};
+
+        if (data.avatar && data.avatar instanceof File) {
+          const formData = new FormData()
+          Object.keys(data).forEach(key => {
+            if (key === 'avatar' && data.avatar instanceof File) {
+              formData.append(key, data.avatar)
+            } else if (data[key as keyof typeof data] !== undefined && data[key as keyof typeof data] !== null) {
+              formData.append(key, data[key as keyof typeof data] as string | Blob);
+            }
+          })
+          payload = formData
+        } else {
+          headers['Content-Type'] = 'application/json';
+        }
+        
+        const response = await apiClient.patch<ApiResponse<UserProfile>>("/user/profile/me/", payload, { headers })
         return response.data
       } catch (error: any) {
         return {
           status: "error",
           message: error.message || "Failed to update profile",
-          data: null as any,
-        }
-      }
-    },
-
-  uploadAvatar: async (
-      role: UserRole,
-      formData: FormData
-    ): Promise<ApiResponse<UserProfile>> => {
-      try {
-        const url = getProfileUrlByRole(role)
-        const response = await apiClient.patch<ApiResponse<UserProfile>>(url, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        })
-        return response.data
-      } catch (error: any) {
-        return {
-          status: "error",
-          message: error.message || "Failed to upload avatar",
           data: null as any,
         }
       }

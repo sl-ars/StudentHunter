@@ -16,6 +16,9 @@ class CustomUser(AbstractUser):
         ('admin', 'Admin'),
     ]
 
+    class Meta:
+        app_label = 'users'
+
     username = None
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255)

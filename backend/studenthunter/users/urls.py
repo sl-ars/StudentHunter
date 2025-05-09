@@ -6,7 +6,7 @@ router = DefaultRouter()
 
 router.register(r"register", RegisterViewSet, basename="register")
 router.register(r"resumes", ResumeViewSet, basename="resumes")
-router.register("", ProfileViewSet, basename="profile-router")
+router.register(r"profile", ProfileViewSet, basename="profile")
 
 urlpatterns = [
     path("", include(router.urls)),

@@ -54,7 +54,7 @@ export interface VerifyResponse {
 
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await apiClient.post<ApiResponse<AuthResponse>>("/auth/token/", credentials)
+    const response = await apiClient.post<ApiResponse<AuthResponse>>("/auth/login/", credentials)
 
     const { access, refresh, user } = response.data.data
 

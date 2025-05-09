@@ -37,9 +37,9 @@ export default function AdminProfilePage() {
     const fetchProfile = async () => {
       try {
         setLoading(true)
-        const response = await userApi.getProfile(USER_ROLES.ADMIN)
-        setProfileData(response)
-        const { percentage, missingFields } = calculateProfileCompletion(response)
+        const response = await userApi.getMyProfile()
+        setProfileData(response.data)
+        const { percentage, missingFields } = calculateProfileCompletion(response.data)
         setProfileCompletion(percentage)
         setMissingFields(missingFields)
       } catch (error) {
@@ -61,7 +61,7 @@ export default function AdminProfilePage() {
     async (data: Partial<UserProfile>) => {
       try {
         setSaving(true)
-        await userApi.updateProfile(USER_ROLES.ADMIN, data)
+        await userApi.updateProfile(data)
         toast({
           title: "Success",
           description: "Profile updated successfully",

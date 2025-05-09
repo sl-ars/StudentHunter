@@ -66,10 +66,10 @@ export default function StudentProfilePage() {
     const fetchProfile = async () => {
       try {
         setLoading(true)
-        const response = await userApi.getProfile(USER_ROLES.STUDENT)
+        const response = await userApi.getMyProfile()
 
-        const profileData = response.data
-        setProfileData(profileData)
+        const profileDataFromApi = response.data
+        setProfileData(profileDataFromApi)
 
         // Calculate profile completion and identify missing fields
         const requiredFields = [
@@ -90,38 +90,37 @@ export default function StudentProfilePage() {
 
         requiredFields.forEach((field) => {
           if (field.name === "education") {
-            if (profileData?.education && profileData?.education.length > 0 && profileData?.education[0]?.university) {
+            if (profileDataFromApi?.education && profileDataFromApi?.education.length > 0 && profileDataFromApi?.education[0]?.university) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "skills") {
-            if (profileData?.skills && profileData.skills.length > 0) {
+            if (profileDataFromApi?.skills && profileDataFromApi.skills.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "experience") {
-            if (profileData?.experience && profileData.experience.length > 0 && profileData.experience[0]?.company) {
+            if (profileDataFromApi?.experience && profileDataFromApi.experience.length > 0 && profileDataFromApi.experience[0]?.company) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "achievements") {
-            if (profileData?.achievements && profileData.achievements.length > 0) {
+            if (profileDataFromApi?.achievements && profileDataFromApi.achievements.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "resume") {
-            // Will be checked when resumes are loaded
             if (resumes.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else {
-            if (profileData?.[field.name]) {
+            if (profileDataFromApi?.[field.name as keyof UserProfile]) {
               completedCount++
             } else {
               missing.push(field.label)
@@ -187,7 +186,7 @@ export default function StudentProfilePage() {
 
     try {
       setSaving(true)
-      await userApi.updateProfile(USER_ROLES.STUDENT, profileData)
+      await userApi.updateProfile(profileData)
       toast({
         title: "Success",
         description: "Profile updated successfully",
@@ -395,7 +394,6 @@ export default function StudentProfilePage() {
                     <AvatarUpload
                       currentAvatar={profileData?.avatar}
                       onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
-                      role={USER_ROLES.STUDENT}
                     />
                     <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
                     <p className="text-muted-foreground text-center">Student</p>

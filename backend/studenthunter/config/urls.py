@@ -8,15 +8,22 @@ from rest_framework_simplejwt.views import (
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.permissions import AllowAny
 from django.conf import settings
+
+from users.views import CustomRefreshView, CustomTokenObtainPairView, CustomVerifyView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/core/', include('core.urls')),
 
-    # JWT & logout
-    path("api/auth/", include("users.urls.auth")),
 
-    # user views (register, me)
-    path("api/user/", include("users.urls.default_urls")),
+    # ── JWT ────────
+    path("api/auth/token/refresh/", CustomRefreshView.as_view(), name="token-refresh"),
+    path("api/auth/token/verify/", CustomVerifyView.as_view(), name="token-verify"),
+    path("api/auth/login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+
+
+    # Apps
+    path("api/user/", include("users.urls")),
     path('api/company/', include('companies.urls')),
     path('api/job/', include('jobs.urls')),
     path('api/resource/', include('resources.urls')),
@@ -26,7 +33,7 @@ urlpatterns = [
 
 ]
 
-# Handle media files in development
+
 if settings.DEBUG:
     urlpatterns += [
         # DRF Spectacular - Schema, Swagger UI, Redoc UI
