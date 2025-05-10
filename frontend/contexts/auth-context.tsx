@@ -370,7 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.push(redirectTo)
           sessionStorage.removeItem("authRedirect")
         } else {
-          redirectBasedOnRole(response.user.role as UserRole)
+          router.push("/profile")
         }
 
         return true
@@ -422,7 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             router.push(redirectTo)
             sessionStorage.removeItem("authRedirect")
           } else {
-            redirectBasedOnRole(loginResponse.user.role as UserRole)
+            router.push("/profile")
           }
 
           return true
@@ -441,23 +441,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return Array.isArray(roles) ? roles.includes(user.role) : user.role === roles
   }
 
-  const redirectBasedOnRole = (role: string) => {
-    switch (role) {
-      case "admin":
-        router.push("/admin")
-        break
-      case "employer":
-        router.push("/employer")
-        break
-      case "campus":
-        router.push("/campus")
-        break
-      case "student":
-      default:
-        router.push("/student")
-        break
-    }
-  }
 
   useEffect(() => {
     if (!isLoading && !user && pathname === "/login") {

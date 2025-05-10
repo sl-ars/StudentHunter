@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.views import exception_handler
 from rest_framework.exceptions import ValidationError, AuthenticationFailed, PermissionDenied as DRFPermissionDenied, NotAuthenticated
 from django.http import Http404
@@ -6,11 +8,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings # For settings.DEBUG
 
+logger = logging.getLogger(__name__)
 def custom_exception_handler(exc, context):
     """
     Global exception handler that wraps all DRF errors in a consistent JSON format.
     Ensures 'status', 'message', 'data', and 'error' keys are present.
     """
+
+    logger.exception("Unhandled exception in API")
+
     response = exception_handler(exc, context) # Get DRF's default response
 
     error_message = "An error occurred."

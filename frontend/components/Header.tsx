@@ -172,7 +172,7 @@ export default function Header() {
                     </div>
                     <div className="p-1">
                       <DropdownMenuItem asChild className="rounded-lg">
-                        <Link href={`/${user.role}/profile`} className="flex items-center cursor-pointer">
+                        <Link href={`/profile`} className="flex items-center cursor-pointer">
                           <User className="mr-2 h-4 w-4 text-gray-500 dark:text-gray-400" />
                           <span>My Profile</span>
                           <ChevronRight className="ml-auto h-4 w-4 text-gray-400 dark:text-gray-500" />

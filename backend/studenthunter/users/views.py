@@ -310,22 +310,8 @@ class ProfileViewSet(viewsets.GenericViewSet):
             if 'avatar' in request.FILES:
                 user.avatar = request.FILES['avatar']
                 user.save(update_fields=['avatar'])
-                # Удаляем 'avatar' из данных для сериализатора, так как он уже обработан
                 data_for_serializer.pop('avatar', None)
             elif 'avatar' in data_for_serializer and isinstance(data_for_serializer['avatar'], str):
-                # Если avatar пришел как строка (URL) от клиента (например, после AvatarUpload),
-                # и мы не хотим, чтобы ImageField сериализатора пытался его обработать как файл,
-                # мы также можем его удалить. Предполагается, что user.avatar уже содержит верный путь.
-                # Однако, если это НОВЫЙ URL, который должен быть сохранен, то сериализатор должен его принять.
-                # Но ImageField не примет URL для записи. Это поле должно быть обновлено напрямую в модели user.
-                # По текущей логике фронтенда, AvatarUpload обновляет файл, а затем передает URL.
-                # ProfileUpdate затем может передать этот URL. Бэкенд уже обновил файл.
-                # Если URL в data_for_serializer['avatar'] это тот же, что и user.avatar.url, то ничего делать не надо.
-                # Если отличается, значит фронтенд хочет ИЗМЕНИТЬ ссылку на аватар на ДРУГОЙ УЖЕ ЗАГРУЖЕННЫЙ URL?
-                # Это маловероятно. Скорее всего, если avatar - строка, это просто текущий URL.
-                # Поэтому безопаснее его убрать, чтобы ImageField не ругался.
-                # Если же цель - позволить менять user.avatar на произвольный URL строкой,
-                # то нужна другая логика в сериализаторе или view.
                 current_avatar_url = ""
                 if user.avatar:
                     try:
@@ -333,22 +319,10 @@ class ProfileViewSet(viewsets.GenericViewSet):
                     except ValueError:
                         current_avatar_url = str(user.avatar) # Fallback if url property fails
                 
-                # Если присланный URL отличается от текущего, это может быть ошибкой или специфическим случаем.
-                # На данный момент, если это не файл, а строка, безопаснее удалить, чтобы не конфликтовать с ImageField.
                 if data_for_serializer['avatar'] != current_avatar_url:
-                    # Это случай, когда фронтенд посылает URL, который отличается от текущего.
-                    # Это может быть новый URL после загрузки через AvatarUpload (уже обработано выше, если был файл)
-                    # или если фронтенд как-то иначе поменял URL и шлет его на сохранение.
-                    # ImageField не сможет это обработать. Обновлять user.avatar строкой URL напрямую рискованно.
-                    # Для простоты, если это не файл, удаляем.
-                    pass # Оставляем avatar в data_for_serializer, если это строка, пусть сериализатор попробует (хотя ImageField может не справиться)
-                    # Чтобы BaseProfileSerializer._update_user_fields мог попытаться обновить user.avatar строкой:
-                    # data_for_serializer['avatar'] = data_for_serializer.get('avatar')
-                    # Но лучше, если BaseProfileSerializer.avatar будет read_only=True для PATCH, если файл обрабатывается отдельно.
-                    # ИЛИ, если avatar - строка, и это новый URL, то view должен сам обновить user.avatar (опасно).
-                    # Проще всего: если файл - загрузили. Если строка - игнорируем в пользу уже загруженного.
-                    # Поэтому, если это строка, ее тоже можно убрать, чтобы сериализатор не трогал.
-                data_for_serializer.pop('avatar', None) # Вне зависимости от того, совпал URL или нет, если это строка, убираем для ImageField.
+ 
+                    pass
+                data_for_serializer.pop('avatar', None)
 
             serializer = profile_serializer_class(
                 target_instance,

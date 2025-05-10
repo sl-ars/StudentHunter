@@ -231,6 +231,52 @@ class BaseProfileSerializer(serializers.ModelSerializer):
             del data['user']['avatar']
         return data
 
+# -----Resume -------------
+
+class ResumeSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Resume
+        fields = ['id', 'name', 'created_at', 'file', 'url']
+        read_only_fields = ['id', 'created_at', 'name', 'url']
+
+    def get_url(self, obj):
+        if obj.file:
+            try:
+                return obj.file.url
+            except ValueError: # Handle cases where the file might not be persisted or URL is not available
+                return None
+        return None
+
+    def validate_file(self, value):
+        if not value:
+            raise serializers.ValidationError("No file was submitted.")
+
+        # Check file size (5MB max)
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("File size must be less than 5MB")
+
+        # Check file type
+        valid_types = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
+        if value.content_type not in valid_types:
+            raise serializers.ValidationError(
+                "File type not supported. Please upload a PDF, DOC, or DOCX file."
+            )
+
+        return value
+
+
+class ResumeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = ['id', 'name', 'created_at']
+        read_only_fields = ['id', 'name', 'created_at']
+
 
 # === FULL PROFILE SERIALIZERS ===
 
@@ -250,14 +296,14 @@ class StudentProfileSerializer(BaseProfileSerializer):
         default=list
     )
     bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    resume = serializers.CharField(read_only=True, required=False, source='get_resume_display', allow_null=True)
+    resumes = ResumeListSerializer(many=True, read_only=True)
 
     class Meta:
         model = StudentProfile
         fields = [
             "id", "name", "email", "role", "avatar", "phone", "location",
             "university", "company", "created_at", "last_login", "is_active",
-            "bio", "skills", "resume", "education", "experience", "achievements"
+            "bio", "skills", "resumes", "education", "experience", "achievements"
         ]
         read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active"]
 
@@ -404,49 +450,6 @@ class CampusProfileSerializer(BaseProfileSerializer):
         return self._update_profile_fields(instance, validated_data)
 
 
-class ResumeSerializer(serializers.ModelSerializer):
-    url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Resume
-        fields = ['id', 'name', 'created_at', 'file', 'url']
-        read_only_fields = ['id', 'created_at', 'name', 'url']
-
-    def get_url(self, obj):
-        if obj.file:
-            try:
-                return obj.file.url
-            except ValueError: # Handle cases where the file might not be persisted or URL is not available
-                return None
-        return None
-
-    def validate_file(self, value):
-        if not value:
-            raise serializers.ValidationError("No file was submitted.")
-
-        # Check file size (5MB max)
-        if value.size > 5 * 1024 * 1024:
-            raise serializers.ValidationError("File size must be less than 5MB")
-
-        # Check file type
-        valid_types = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ]
-        if value.content_type not in valid_types:
-            raise serializers.ValidationError(
-                "File type not supported. Please upload a PDF, DOC, or DOCX file."
-            )
-
-        return value
-
-
-class ResumeListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Resume
-        fields = ['id', 'name', 'created_at']
-        read_only_fields = ['id', 'name', 'created_at']
 
 
 class PublicProfileSerializer(serializers.ModelSerializer):

@@ -151,76 +151,158 @@ export const userApi = {
       data: Partial<AnyFullProfile> & { avatar?: File | string | null }
     ): Promise<ApiResponse<AnyFullProfile>> => {
       try {
-        const formData = new FormData();
+        let response;
+        const avatarAsAny = data.avatar as any;
 
-        Object.keys(data).forEach(keyStr => {
-          const value = (data as any)[keyStr];
+        if (avatarAsAny && avatarAsAny instanceof File) {
+      
+          const formData = new FormData();
 
-          if (value === undefined || value === null) {
-            return;
-          }
+          Object.entries(data).forEach(([key, value]) => {
+     
+            if (value === undefined || value === null) {
+       
+              if (key === 'avatar' && value instanceof File) {
+       
+              } else {
+                return;
+              }
+            }
 
-          if (keyStr === 'avatar') {
-            if (value instanceof File) {
-              formData.append(keyStr, value);
-            } else if (typeof value === 'string') { 
-              formData.append(keyStr, value);
+            if (key === 'avatar') {
+              if (value instanceof File) {
+                formData.append(key, value);
+              } else if (typeof value === 'string') {
+
+                formData.append(key, value);
+              }
+              return;
             }
-          } else if (
-            (keyStr === 'skills' || 
-             keyStr === 'achievements' || 
-             keyStr === 'programs_offered' || 
-             keyStr === 'company_skills_tags') && 
-            Array.isArray(value)
-          ) {
-            if (value.every(item => typeof item === 'string')) {
-              (value as string[]).forEach(item => formData.append(keyStr, item));
-            } else {
-              formData.append(keyStr, JSON.stringify(value));
+
+            const arrayFieldsMulti = ['skills', 'achievements', 'company_skills_tags'];
+            if (arrayFieldsMulti.includes(key) && Array.isArray(value)) {
+              value.forEach(item => {
+                if (item !== null && item !== undefined) {
+                  formData.append(key, String(item)); 
+                }
+              });
+              return;
             }
-          } else if (Array.isArray(value)) {
-            formData.append(keyStr, JSON.stringify(value));
-          } else if (typeof value === 'object' && value !== null) {
-            if (value instanceof File) {
-              console.warn(`Skipping unexpected File in field: ${keyStr}. Ensure File objects are handled explicitly by keyStr.`);
-            } else {
-              formData.append(keyStr, JSON.stringify(value));
+
+            const arrayFieldsJson = ['education', 'experience', 'programs_offered'];
+            if (arrayFieldsJson.includes(key) && Array.isArray(value)) {
+              formData.append(key, JSON.stringify(value));
+              return;
             }
-          } else {
-            formData.append(keyStr, String(value));
-          }
-        });
-        
-        const response = await apiClient.patch<ApiResponse<AnyFullProfile>>("/user/profile/me/", formData);
+
+            if (typeof value === 'object' && !(value instanceof File)) {
+              formData.append(key, JSON.stringify(value));
+              return;
+            }
+
+  
+            if (typeof value !== 'object') {
+              formData.append(key, String(value));
+            }
+          });
+
+          response = await apiClient.patch<ApiResponse<AnyFullProfile>>("/user/profile/me/", formData);
+
+        } else {
+
+          const jsonDataPayload: { [key: string]: any } = {};
+          Object.entries(data).forEach(([k, v]) => {
+            if (v !== undefined) {
+              jsonDataPayload[k] = v;
+            }
+          });
+          response = await apiClient.patch<ApiResponse<AnyFullProfile>>("/user/profile/me/", jsonDataPayload);
+        }
+
         return response.data;
       } catch (error: any) {
-        return {
-          status: "error",
-          message: error.message || "Failed to update profile",
-          data: null as any,
+        let nicelyFormattedMessage = "Failed to update profile. Please try again."; // Default message
+
+        const errorResponse = error.response?.data;
+
+        if (errorResponse && errorResponse.error && typeof errorResponse.error.details === 'object' && errorResponse.error.details !== null) {
+            const details = errorResponse.error.details;
+            const detailedMessages: string[] = [];
+
+            // Use the main message from API if available, otherwise a default
+            const mainApiMessage = typeof errorResponse.message === 'string' && errorResponse.message ? errorResponse.message : "Validation error";
+            detailedMessages.push(mainApiMessage + ". Please check the following issues:");
+
+            for (const fieldName in details) {
+                if (!Object.prototype.hasOwnProperty.call(details, fieldName)) continue;
+
+                const errorsForField = details[fieldName];
+                const capitalizedFieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
+
+                if (Array.isArray(errorsForField)) {
+                    // Check if it's an array of simple string errors
+                    const allStrings = errorsForField.every(e => typeof e === 'string');
+
+                    if (allStrings && errorsForField.length > 0) {
+                        detailedMessages.push(`\n- ${capitalizedFieldName}:`);
+                        errorsForField.forEach(msg => {
+                            if (typeof msg === 'string') detailedMessages.push(`  - ${msg}`);
+                        });
+                    } else { // Otherwise, assume it's an array of objects (like education items)
+                        errorsForField.forEach((item, index) => {
+                            // Process only if item is an object with keys (skips empty {} like in education[0])
+                            if (typeof item === 'object' && item !== null && Object.keys(item).length > 0) {
+                                detailedMessages.push(`\n- ${capitalizedFieldName} (Entry ${index + 1}):`);
+                                for (const subFieldName in item) {
+                                     if (!Object.prototype.hasOwnProperty.call(item, subFieldName)) continue;
+                                    const subFieldErrArray = item[subFieldName]; // This should be an array of error strings
+                                    const capitalizedSubFieldName = subFieldName.charAt(0).toUpperCase() + subFieldName.slice(1).replace(/_/g, ' ');
+                                    if (Array.isArray(subFieldErrArray)) {
+                                        subFieldErrArray.forEach(msg => {
+                                           if (typeof msg === 'string') detailedMessages.push(`  - ${capitalizedSubFieldName}: ${msg}`);
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } else if (typeof errorsForField === 'object' && errorsForField !== null) {
+                    // Handles cases where errorsForField is an object mapping sub-fields to error message arrays
+                    detailedMessages.push(`\n- ${capitalizedFieldName}:`);
+                    for (const subFieldName in errorsForField) {
+                         if (!Object.prototype.hasOwnProperty.call(errorsForField, subFieldName)) continue;
+                         const subFieldErrArray = (errorsForField as any)[subFieldName];
+                         const capitalizedSubFieldName = subFieldName.charAt(0).toUpperCase() + subFieldName.slice(1).replace(/_/g, ' ');
+                         if (Array.isArray(subFieldErrArray)) {
+                            subFieldErrArray.forEach(msg => {
+                                if (typeof msg === 'string') detailedMessages.push(`  - ${capitalizedSubFieldName}: ${msg}`);
+                            });
+                         }
+                    }
+                }
+            }
+
+            // Use the detailed messages if any were generated
+            if (detailedMessages.length > 1) { // More than just the initial header
+                nicelyFormattedMessage = detailedMessages.join('\n');
+            } else if (typeof errorResponse.message === 'string' && errorResponse.message) {
+                // Fallback to API's main error message if no details parsed but message exists
+                nicelyFormattedMessage = errorResponse.message;
+            }
+            // If no specific details and no main API message, the default "Failed to update..." remains
+
+        } else if (error.message && typeof error.message === 'string') {
+            // Fallback for errors that don't fit the detailed structure but have a message
+            nicelyFormattedMessage = error.message;
         }
+
+        return {
+          status: errorResponse?.status === "fail" ? "fail" : "error", // Reflect "fail" status from API if present
+          message: nicelyFormattedMessage,
+          data: null as any,
+        };
       }
     },
-
-  uploadResume: async (file: File): Promise<ApiResponse<{ id: string; url: string }>> => {
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await apiClient.post<ApiResponse<{ id: string; url: string }>>("/user/resumes/", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to upload resume",
-        data: { id: "", url: "" },
-      }
-    }
-  },
 
   getResumes: async (): Promise<ApiResponse<{ id: string; name: string; url: string; created_at: string }[]>> => {
     try {
@@ -363,10 +445,9 @@ export const userApi = {
     return response.data.data
   },
 
-  // Method for AvatarUpload component to directly upload an avatar
   uploadAvatar: async (
-    // role: UserRole, // Role might not be strictly necessary if endpoint is /user/profile/me/
-    formData: FormData // Expects FormData with 'avatar' field
+
+    formData: FormData
   ): Promise<ApiResponse<{ avatar: string }>> => {
     try {
       const response = await apiClient.patch<ApiResponse<{ avatar: string }>>(
@@ -378,10 +459,6 @@ export const userApi = {
           },
         }
       );
-      // Assuming the backend returns the new avatar URL in response.data.data.avatar
-      // or response.data.avatar if the structure is flatter for this specific endpoint.
-      // For consistency with getMyProfile which is likely UserProfile, let's assume it's in response.data.avatar
-      // The AvatarUpload component expects response.data.avatar
       return response.data; 
     } catch (error: any) {
       return {
