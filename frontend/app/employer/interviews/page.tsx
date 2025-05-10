@@ -6,125 +6,123 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar, Clock, User } from "lucide-react"
+import { Calendar, Clock, User, Briefcase, ExternalLink, CheckCircle, XCircle } from "lucide-react"
 import ProtectedRoute from "@/components/protected-route"
 import { employerApi } from "@/lib/api"
-import { isMockEnabled } from "@/lib/utils/config"
-import { toast } from "@/components/ui/use-toast"
-
-interface Interview {
-  id: string
-  name: string
-  position: string
-  date: string
-  time: string
-}
+import { toast } from "sonner"
+import type { Application } from "@/lib/types"
+import Link from "next/link"
 
 export default function EmployerInterviewsPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [interviews, setInterviews] = useState<Interview[]>([])
+  const [scheduledApplications, setScheduledApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!user) router.push("/login")
-
-    const fetchInterviews = async () => {
-      try {
-        setLoading(true)
-        const response = await employerApi.getInterviews()
-        setInterviews(response.data)
-      } catch (error) {
-        console.error("Error fetching interviews:", error)
-        toast({
-          title: "Error",
-          description: "Failed to fetch interviews",
-          variant: "destructive",
-        })
-
-        // If API call fails or mock is enabled, use mock data
-        if (isMockEnabled()) {
-          setInterviews([
-            { id: "1", name: "Alice Johnson", position: "Frontend Developer", date: "2025-03-05", time: "10:00 AM" },
-            { id: "2", name: "Bob Smith", position: "UX Designer", date: "2025-03-06", time: "2:00 PM" },
-            { id: "3", name: "Carol Davis", position: "Data Analyst", date: "2025-03-07", time: "11:30 AM" },
-          ])
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchInterviews()
-  }, [user, router])
-
-  const handleStatusChange = async (interviewId: string, newStatus: string) => {
+  const fetchScheduledApplications = async () => {
+    setLoading(true);
     try {
-      await employerApi.updateInterviewStatus(interviewId, newStatus)
-      fetchInterviews()
-      toast({
-        title: "Success",
-        description: "Interview status updated successfully",
-      })
+      const apps = await employerApi.getInterviews(); 
+      setScheduledApplications(apps);
     } catch (error) {
-      console.error("Error updating interview status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update interview status",
-        variant: "destructive",
-      })
+      console.error("Error fetching scheduled applications (interviews):", error);
+      toast.error("Failed to fetch scheduled interviews.");
+      setScheduledApplications([]);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    fetchScheduledApplications();
+  }, [user, router]);
+
+  const handleApplicationStatusUpdate = async (applicationId: string, newStatus: "accepted" | "rejected") => {
+    try {
+      const response = await employerApi.updateApplicationStatus(applicationId, newStatus);
+      if (response.status === "success") {
+        toast.success(`Application status updated to ${newStatus}.`);
+        fetchScheduledApplications();
+      } else {
+        toast.error(response.message || "Failed to update application status.");
+      }
+    } catch (error) {
+      console.error("Error updating application status:", error);
+      toast.error("Failed to update application status.");
+    }
+  };
 
   return (
-    <ProtectedRoute roles="employer">
+    <ProtectedRoute roles={["employer"]}>
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold mb-8">Interview Schedule</h1>
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Interviews</CardTitle>
+            <CardTitle>Scheduled Interviews</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-4">Loading interviews...</div>
-            ) : interviews.length === 0 ? (
-              <div className="text-center py-4">No upcoming interviews scheduled</div>
+            ) : scheduledApplications.length === 0 ? (
+              <div className="text-center py-4">No interviews currently scheduled.</div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Candidate</TableHead>
                     <TableHead>Position</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Interview Date & Time</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {interviews.map((interview) => (
-                    <TableRow key={interview.id}>
+                  {scheduledApplications.map((app) => (
+                    <TableRow key={app.id}>
                       <TableCell>
                         <div className="flex items-center">
-                          <User className="mr-2 h-4 w-4" />
-                          {interview.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>{interview.position}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {interview.date}
+                          <User className="mr-2 h-4 w-4 text-gray-500" />
+                          {typeof app.applicant === 'object' ? app.applicant.name : 'N/A'}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center">
-                          <Clock className="mr-2 h-4 w-4" />
-                          {interview.time}
+                          <Briefcase className="mr-2 h-4 w-4 text-gray-500" />
+                          {app.job_title || (typeof app.job === 'object' && app.job.title) || 'N/A'}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm">
-                          View Details
+                        <div className="flex items-center">
+                          <Calendar className="mr-2 h-4 w-4 text-gray-500" />
+                          {app.interview_date 
+                            ? new Date(app.interview_date).toLocaleString() 
+                            : "Not Set"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Link href={`/employer/applications/${app.id}`} passHref>
+                          <Button variant="outline" size="sm">
+                            View Application <ExternalLink className="ml-1 h-3 w-3" />
+                          </Button>
+                        </Link>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-green-600 hover:text-green-700"
+                          onClick={() => handleApplicationStatusUpdate(app.id, "accepted")}
+                        >
+                          <CheckCircle className="mr-1 h-4 w-4" /> Accept
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-600 hover:text-red-700" 
+                          onClick={() => handleApplicationStatusUpdate(app.id, "rejected")}
+                        >
+                          <XCircle className="mr-1 h-4 w-4" /> Reject
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -136,5 +134,5 @@ export default function EmployerInterviewsPage() {
         </Card>
       </div>
     </ProtectedRoute>
-  )
+  );
 }

@@ -69,23 +69,16 @@ class CompanyViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'], url_path='employer/company', permission_classes=[IsAuthenticated])
     def employer_company(self, request):
-        # Get employer profile for this user
         try:
             employer_profile = EmployerProfile.objects.get(user=request.user)
-            
-            # Check if employer has a company
             if employer_profile.company:
                 company = employer_profile.company
                 serializer = self.get_serializer(company)
-                
-                # Return the serialized data directly as it now includes all needed fields
                 return Response({
                     'status': 'success',
                     'message': 'Company profile retrieved successfully',
                     'data': serializer.data
                 })
-            
-            # If no company exists, return a default profile
             return Response({
                 'status': 'success',
                 'message': 'No company exists for this employer',
@@ -103,7 +96,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
             })
             
         except EmployerProfile.DoesNotExist:
-            # Create a default employer profile if it doesn't exist
             employer_profile = EmployerProfile.objects.create(user=request.user)
             
             return Response({
@@ -135,13 +127,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['put', 'patch'], url_path='employer/company', permission_classes=[IsAuthenticated])
     def update_employer_company(self, request):
         try:
-            # Get employer profile for this user
             employer_profile = EmployerProfile.objects.get(user=request.user)
-            
-            # Log request data for debugging
             print(f"Received data for company profile update: {request.data}")
-            
-            # Extract data from request
             company_name = request.data.get('company_name', '')
             industry = request.data.get('industry', '')
             website = request.data.get('website', '')
@@ -149,10 +136,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
             location = request.data.get('location', '')
             
             print(f"Extracted fields - name: {company_name}, industry: {industry}, website: {website}")
-            
-            # Check if employer has a company
             if employer_profile.company:
-                # Update existing company
                 company = employer_profile.company
                 print(f"Updating existing company: {company.name} (ID: {company.id})")
                 company.name = company_name
@@ -163,7 +147,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 company.save()
                 print(f"Company updated: {company.name}")
             else:
-                # Create new company
                 print(f"Creating new company: {company_name}")
                 company = Company.objects.create(
                     name=company_name,
@@ -177,8 +160,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 employer_profile.company = company
                 employer_profile.save()
                 print(f"New company created with ID: {company.id}")
-                
-                # Update any existing jobs with the same company name
                 try:
                     from jobs.models import Job
                     existing_jobs = Job.objects.filter(company=company_name)
@@ -190,15 +171,11 @@ class CompanyViewSet(viewsets.ModelViewSet):
                         print(f"Updated job: {job.id} - {job.title} with company ID: {company.id}")
                 except Exception as e:
                     print(f"Error updating existing jobs for new company: {str(e)}")
-            
-            # Update user's company info for consistency
             user = request.user
             user.company = company_name
             user.company_id = str(company.id)
             user.save()
             print(f"User company info updated: {user.company} (ID: {user.company_id})")
-            
-            # Return response with serialized company data
             serializer = self.get_serializer(company)
             
             return Response({
@@ -208,7 +185,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
             })
             
         except EmployerProfile.DoesNotExist:
-            # Create a default employer profile and company
             employer_profile = EmployerProfile.objects.create(user=request.user)
             
             company_name = request.data.get('company_name', '')
@@ -229,14 +205,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
             
             employer_profile.company = company
             employer_profile.save()
-            
-            # Update user's company info
             user = request.user
             user.company = company_name
             user.company_id = str(company.id)
             user.save()
-            
-            # Prepare response
             serializer = self.get_serializer(company)
             
             return Response({
@@ -264,17 +236,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['post'], url_path='employer/update', permission_classes=[IsAuthenticated])
     def post_employer_company(self, request):
-        """
-        POST метод для создания/обновления профиля компании работодателя
-        """
+
         try:
-            # Get employer profile for this user
             employer_profile = EmployerProfile.objects.get(user=request.user)
-            
-            # Log request data for debugging
             print(f"Received data for company profile update via POST: {request.data}")
-            
-            # Extract data from request
             company_name = request.data.get('company_name', '')
             industry = request.data.get('industry', '')
             website = request.data.get('website', '')
@@ -282,14 +247,9 @@ class CompanyViewSet(viewsets.ModelViewSet):
             location = request.data.get('location', '')
             
             print(f"Extracted fields - name: {company_name}, industry: {industry}, website: {website}")
-            
-            # Check if employer has a company
             if employer_profile.company:
-                # Update existing company
                 company = employer_profile.company
                 print(f"Updating existing company: {company.name} (ID: {company.id})")
-                
-                # Store old name for updating related jobs
                 old_company_name = company.name
                 
                 company.name = company_name
@@ -299,11 +259,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 company.location = location or ''
                 company.save()
                 print(f"Company updated: {company.name}")
-                
-                # Update all jobs associated with this company
                 from jobs.models import Job
                 try:
-                    # Update all jobs that belong to this company
                     company_jobs = Job.objects.filter(company_id=str(company.id))
                     print(f"Found {company_jobs.count()} jobs to update for this company")
                     
@@ -311,8 +268,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
                         job.company = company_name
                         job.save()
                         print(f"Updated job: {job.id} - {job.title} with new company name: {company_name}")
-                        
-                    # Also update any jobs that might have the old company name but not the ID
                     other_company_jobs = Job.objects.filter(company=old_company_name)
                     print(f"Found {other_company_jobs.count()} additional jobs with old company name")
                     
@@ -324,7 +279,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     print(f"Error updating jobs: {str(e)}")
             else:
-                # Create new company
                 print(f"Creating new company: {company_name}")
                 company = Company.objects.create(
                     name=company_name,
@@ -338,18 +292,13 @@ class CompanyViewSet(viewsets.ModelViewSet):
                 employer_profile.company = company
                 employer_profile.save()
                 print(f"New company created with ID: {company.id}")
-            
-            # Update user's company info for consistency
             user = request.user
             user.company = company_name
             user.company_id = str(company.id)
             user.save()
             print(f"User company info updated: {user.company} (ID: {user.company_id})")
-            
-            # Check if user has other connected profiles and update them too
             try:
                 from users.models import CustomUser
-                # Update all users with the same company ID
                 related_users = CustomUser.objects.filter(company_id=str(company.id)).exclude(id=user.id)
                 print(f"Found {related_users.count()} related users to update")
                 
@@ -359,8 +308,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
                     print(f"Updated user: {related_user.email} with new company name")
             except Exception as e:
                 print(f"Error updating related users: {str(e)}")
-            
-            # Return response with serialized company data
             serializer = self.get_serializer(company)
             
             return Response({
@@ -370,7 +317,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
             })
             
         except EmployerProfile.DoesNotExist:
-            # Create a default employer profile and company
             employer_profile = EmployerProfile.objects.create(user=request.user)
             
             company_name = request.data.get('company_name', '')
@@ -391,14 +337,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
             
             employer_profile.company = company
             employer_profile.save()
-            
-            # Update user's company info
             user = request.user
             user.company = company_name
             user.company_id = str(company.id)
             user.save()
-            
-            # Prepare response
             serializer = self.get_serializer(company)
             
             return Response({
@@ -437,22 +379,14 @@ class CompanyViewSet(viewsets.ModelViewSet):
     @extend_schema(summary="Delete a company by ID")
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
-
-# Добавляем простую функцию для обновления профиля компании
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def employer_company_update(request):
-    """
-    Обновление профиля компании работодателя через POST запрос.
-    Принимает те же данные, что и метод update_employer_company.
-    """
+
     try:
-        # Получаем профиль работодателя
         employer_profile = EmployerProfile.objects.get(user=request.user)
         
         print(f"Received data for company profile update via POST: {request.data}")
-        
-        # Извлекаем данные из запроса
         company_name = request.data.get('company_name', '')
         industry = request.data.get('industry', '')
         website = request.data.get('website', '')
@@ -460,10 +394,7 @@ def employer_company_update(request):
         location = request.data.get('location', '')
         
         print(f"Extracted fields - name: {company_name}, industry: {industry}, website: {website}")
-        
-        # Проверяем, есть ли у работодателя компания
         if employer_profile.company:
-            # Обновляем существующую компанию
             company = employer_profile.company
             print(f"Updating existing company: {company.name} (ID: {company.id})")
             company.name = company_name
@@ -474,7 +405,6 @@ def employer_company_update(request):
             company.save()
             print(f"Company updated: {company.name}")
         else:
-            # Создаем новую компанию
             print(f"Creating new company: {company_name}")
             company = Company.objects.create(
                 name=company_name,
@@ -488,15 +418,11 @@ def employer_company_update(request):
             employer_profile.company = company
             employer_profile.save()
             print(f"New company created with ID: {company.id}")
-        
-        # Обновляем информацию о компании пользователя
         user = request.user
         user.company = company_name
         user.company_id = str(company.id)
         user.save()
         print(f"User company info updated: {user.company} (ID: {user.company_id})")
-        
-        # Сериализуем данные компании для ответа
         serializer = CompanySerializer(company)
         
         return Response({
@@ -506,7 +432,6 @@ def employer_company_update(request):
         })
         
     except EmployerProfile.DoesNotExist:
-        # Создаем профиль работодателя по умолчанию, если он не существует
         employer_profile = EmployerProfile.objects.create(user=request.user)
         
         company_name = request.data.get('company_name', '')
@@ -527,14 +452,10 @@ def employer_company_update(request):
         
         employer_profile.company = company
         employer_profile.save()
-        
-        # Обновляем информацию о компании пользователя
         user = request.user
         user.company = company_name
         user.company_id = str(company.id)
         user.save()
-        
-        # Сериализуем данные компании для ответа
         serializer = CompanySerializer(company)
         
         return Response({

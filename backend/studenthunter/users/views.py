@@ -215,8 +215,6 @@ class ProfileViewSet(viewsets.GenericViewSet):
     queryset = User.objects.all()
     lookup_field = 'id'
     parser_classes = [JSONParser, MultiPartParser, FormParser]
-
-    # Component name for Polymorphic Serializer used in 'me' action
     ME_PROFILE_SERIALIZER_COMPONENT_NAME = 'UserProfileMeResponse'
 
     def get_permissions(self):
@@ -268,19 +266,19 @@ class ProfileViewSet(viewsets.GenericViewSet):
         }
     )
     @extend_schema(methods=['PATCH'],
-        request=PolymorphicProxySerializer( # For request body documentation
+        request=PolymorphicProxySerializer(
             component_name='UserProfileMeUpdate',
             serializers={
                 'student': StudentProfileSerializer,
                 'employer': EmployerProfileSerializer,
                 'campus': CampusProfileSerializer,
-                'admin': UserSerializer, # Admin might update basic user fields via UserSerializer
+                'admin': UserSerializer,
             },
             resource_type_field_name=None
         ),
         responses={
             200: PolymorphicProxySerializer(
-                component_name=ME_PROFILE_SERIALIZER_COMPONENT_NAME, # Reuse for response
+                component_name=ME_PROFILE_SERIALIZER_COMPONENT_NAME,
                 serializers={
                     'student': StudentProfileSerializer,
                     'employer': EmployerProfileSerializer,
@@ -318,7 +316,7 @@ class ProfileViewSet(viewsets.GenericViewSet):
                     try:
                         current_avatar_url = request.build_absolute_uri(user.avatar.url)
                     except ValueError:
-                        current_avatar_url = str(user.avatar) # Fallback if url property fails
+                        current_avatar_url = str(user.avatar)
                 
                 if data_for_serializer['avatar'] != current_avatar_url:
  
@@ -349,8 +347,6 @@ class ProfileViewSet(viewsets.GenericViewSet):
 
         if user.role not in ["student", "employer", "campus"]:
             return fail(message=f"Profiles of type '{user.role}' are not publicly viewable", code=status.HTTP_403_FORBIDDEN)
-
-        # For public profile view, we use PublicProfileSerializer as defined in @extend_schema_view
         serializer = PublicProfileSerializer(user, context={'request': request})
         return ok(data=serializer.data, message="Public profile retrieved successfully")
 

@@ -45,6 +45,24 @@ export interface Job {
   is_saved?: boolean;
 }
 
+// Define a new interface for the nested applicant data
+export interface ApplicantData {
+  id: string;
+  avatar?: string;
+  name: string;
+  email: string;
+  phone?: string; // Assuming phone can be optional
+}
+
+// Define the Resume interface based on ResumeSerializer
+export interface Resume {
+  id: string;
+  name: string;
+  created_at: string;
+  file: string; // Path/name of the uploaded file
+  url: string | null; // URL to access the file
+}
+
 export interface Application {
   id: string;
   job: Job | string;
@@ -53,15 +71,7 @@ export interface Application {
   job_location?: string;
   job_type?: string;
   job_details?: Partial<Job>;
-  applicant: User | string;
-  applicant_name?: string;
-  applicant_email?: string;
-  applicant_phone?: string;
-  applicant_profile?: {
-    education?: string;
-    skills?: string[];
-    experience?: string;
-  };
+  applicant: ApplicantData | string; 
   status: "pending" | "reviewing" | "interviewed" | "accepted" | "rejected";
   status_history?: {
     status: string;
@@ -69,12 +79,14 @@ export interface Application {
     notes: string;
   }[];
   cover_letter: string;
-  resume: string;
+  resume: Resume; // Changed from string to Resume interface
+  resume_id?: string; // Added for write operations
   created_at: string;
   updated_at: string;
   interview_date: string | null;
   notes: string;
 }
+
 export interface ModerationLog {
   id: string;
   admin: string;
@@ -333,3 +345,36 @@ export interface ApiResponse<T = any> {
   error?: any; // For detailed error messages or codes
   errors?: Record<string, string[]>; // For form validation errors
 }
+
+// Analytics types
+// EmployerDashboardAnalytics represents the content of the 'summary' object from the backend
+export interface EmployerDashboardAnalytics {
+  total_jobs?: number;
+  active_jobs?: number;
+  total_applications?: number;
+  application_status_counts?: Record<string, number>; 
+  total_job_views?: number;
+}
+
+// BackendAnalyticsPayload represents the structure nested inside the primary 'data' field
+export interface BackendAnalyticsPayload {
+  status?: string; // The inner status
+  data?: { // This data contains summary, time_series, popular_jobs
+    summary: EmployerDashboardAnalytics;
+    time_series: {
+      applications_over_time: Array<{date: string, applications: number}>;
+      job_views_over_time: Array<{date: string, views: number}>;
+    };
+    popular_jobs: Array<{id: any, title: string, view_count: number, num_applications: number}>;
+  };
+  message?: string; // Inner message if present
+}
+
+// This type represents the entire JSON object returned by the /analytics/employer/ endpoint
+// if your apiClient.get<T> gives you T as the direct JSON body.
+// However, our employerApi.getAnalytics is expected to return ApiResponse<EmployerDashboardAnalytics>.
+// The apiClient itself might be wrapping the actual server response into an ApiResponse structure.
+
+// Let's assume apiClient.get<T> returns T as the direct http response body.
+// The direct body is: { status, message, data: BackendAnalyticsPayload, error }
+// So T for apiClient.get would be our standard ApiResponse<BackendAnalyticsPayload>.

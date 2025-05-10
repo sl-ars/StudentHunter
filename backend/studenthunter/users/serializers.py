@@ -26,9 +26,6 @@ from companies.models import Company
 
 User = get_user_model()
 
-
-# === USER SERIALIZATION ===
-
 class UserSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(use_url=True, required=False, allow_null=True)
 
@@ -101,33 +98,27 @@ class TokenRefreshSerializer(BaseTokenRefreshSerializer):
             "access": data["access"]
         }
 
-
-# === MIXINS ===
-
 class DateTrimMixin:
     def to_internal_value(self, data):
         data = super().to_internal_value(data)
         if isinstance(data, dict):
             if 'start_date' in data and isinstance(data['start_date'], str):
-                if len(data['start_date']) == 7:  # YYYY-MM format
+                if len(data['start_date']) == 7:
                     data['start_date'] = f"{data['start_date']}-01"
 
             if 'end_date' in data and isinstance(data['end_date'], str):
-                if len(data['end_date']) == 7:  # YYYY-MM format
+                if len(data['end_date']) == 7:
                     data['end_date'] = f"{data['end_date']}-01"
         return data
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         if ret.get('start_date') and isinstance(ret['start_date'], str):
-            ret['start_date'] = ret['start_date'][:7]  # Keep only YYYY-MM
+            ret['start_date'] = ret['start_date'][:7]
 
         if ret.get('end_date') and isinstance(ret['end_date'], str):
-            ret['end_date'] = ret['end_date'][:7]  # Keep only YYYY-MM
+            ret['end_date'] = ret['end_date'][:7]
         return ret
-
-
-# === PROFILE FIELD SERIALIZERS ===
 
 class EducationSerializer(DateTrimMixin, serializers.ModelSerializer):
     start_date = serializers.DateField(
@@ -162,9 +153,6 @@ class ExperienceSerializer(DateTrimMixin, serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ["student"]
 
-
-# === BASE PROFILE SERIALIZER with user fields merged ===
-
 class BaseProfileSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="user.name", required=False, allow_blank=True, allow_null=True)
     email = serializers.EmailField(source="user.email", required=False, allow_blank=True, allow_null=True)
@@ -173,8 +161,6 @@ class BaseProfileSerializer(serializers.ModelSerializer):
     location = serializers.CharField(source="user.location", required=False, allow_blank=True, allow_null=True)
     university = serializers.CharField(source="user.university", required=False, allow_blank=True, allow_null=True)
     company = serializers.CharField(source="user.company", required=False, allow_blank=True, allow_null=True)
-
-    # readonly
     id = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
@@ -226,12 +212,9 @@ class BaseProfileSerializer(serializers.ModelSerializer):
         return instance
 
     def validate(self, data):
-        # Remove avatar from validation if it's already been handled
         if 'user' in data and 'avatar' in data['user']:
             del data['user']['avatar']
         return data
-
-# -----Resume -------------
 
 class ResumeSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
@@ -245,19 +228,15 @@ class ResumeSerializer(serializers.ModelSerializer):
         if obj.file:
             try:
                 return obj.file.url
-            except ValueError: # Handle cases where the file might not be persisted or URL is not available
+            except ValueError:
                 return None
         return None
 
     def validate_file(self, value):
         if not value:
             raise serializers.ValidationError("No file was submitted.")
-
-        # Check file size (5MB max)
         if value.size > 5 * 1024 * 1024:
             raise serializers.ValidationError("File size must be less than 5MB")
-
-        # Check file type
         valid_types = [
             'application/pdf',
             'application/msword',
@@ -278,9 +257,6 @@ class ResumeListSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'name', 'created_at']
 
 
-# === CONSTANTS FOR PROFILE COMPLETENESS ===
-# These are checked for student profiles to determine completeness.
-# Keys are internal identifiers; values are callables (lambda user, profile: bool).
 STUDENT_COMPLETENESS_CHECKS = {
     'name': lambda user, profile: bool(user.name and user.name.strip()),
     'avatar': lambda user, profile: bool(user.avatar),
@@ -288,14 +264,12 @@ STUDENT_COMPLETENESS_CHECKS = {
     'location': lambda user, profile: bool(user.location and user.location.strip()),
     'university_affiliation': lambda user, profile: bool(user.university and user.university.strip()),
     'bio': lambda user, profile: bool(profile.bio and profile.bio.strip()),
-    'skills': lambda user, profile: bool(profile.skills), # Non-empty list
-    'achievements': lambda user, profile: bool(profile.achievements), # Non-empty list
+    'skills': lambda user, profile: bool(profile.skills),
+    'achievements': lambda user, profile: bool(profile.achievements),
     'resumes': lambda user, profile: profile.resumes.exists(),
     'education_history': lambda user, profile: profile.education.exists(),
     'work_experience': lambda user, profile: profile.experience.exists(),
 }
-
-# User-friendly names for missing fields for student profiles.
 STUDENT_FIELD_FRIENDLY_NAMES = {
     'name': "Full Name",
     'avatar': "Profile Picture",
@@ -309,9 +283,6 @@ STUDENT_FIELD_FRIENDLY_NAMES = {
     'education_history': "Education History (at least one entry)",
     'work_experience': "Work Experience (at least one entry)",
 }
-
-
-# === FULL PROFILE SERIALIZERS ===
 
 class StudentProfileSerializer(BaseProfileSerializer):
     education = EducationSerializer(many=True, required=False)
@@ -360,14 +331,12 @@ class StudentProfileSerializer(BaseProfileSerializer):
         return round(percentage, 2), missing_field_keys
 
     def get_profile_completeness_percentage(self, obj: StudentProfile):
-        # obj is the StudentProfile instance
         if obj.user.role != 'student':
-            return None # Or 100, or raise an error, depending on desired behavior for non-students
+            return None
         percentage, _ = self._get_completeness_info(obj)
         return percentage
 
     def get_missing_profile_fields(self, obj: StudentProfile):
-        # obj is the StudentProfile instance
         if obj.user.role != 'student':
             return []
         _, missing_fields = self._get_completeness_info(obj)
@@ -390,24 +359,21 @@ class StudentProfileSerializer(BaseProfileSerializer):
                     payload_item_ids.add(item_id)
                     try:
                         item_instance = existing_items_qs.get(id=item_id, student=instance)
-                        # Update existing instance
                         for attr, value in item_payload.items():
-                            if attr == 'id': continue # Don't try to set id directly on existing instance
+                            if attr == 'id': continue
                             setattr(item_instance, attr, value)
-                        item_instance.full_clean() # Ensure model validation passes
+                        item_instance.full_clean()
                         item_instance.save()
                     except Education.DoesNotExist:
-                        # Optionally: raise validation error or create if ID mismatch is allowed
-                        # For now, let's assume an ID implies existence and student ownership
-                        # If an ID is provided but doesn't match an existing record for this student,
-                        # it could be an error. Or, if we want to allow "moving" an education record
-                        # by ID (less likely for nested), this logic would need adjustment.
-                        # Current behavior: if ID is there, it must be updatable.
-                        # If the goal is to create with a specific ID, that's unusual.
-                        # The test implies 'id' in payload is for updating.
-                        Education.objects.create(student=instance, **item_payload) # Fallback: create if not found by ID (problematic if ID is foreign)
+
+
+
+
+
+
+
+                        Education.objects.create(student=instance, **item_payload)
                 else:
-                    # Create new instance
                     new_item = Education.objects.create(student=instance, **item_payload)
                     payload_item_ids.add(new_item.id)
 
@@ -432,7 +398,7 @@ class StudentProfileSerializer(BaseProfileSerializer):
                         item_instance.full_clean()
                         item_instance.save()
                     except Experience.DoesNotExist:
-                        Experience.objects.create(student=instance, **item_payload) # Fallback
+                        Experience.objects.create(student=instance, **item_payload)
                 else:
                     new_item = Experience.objects.create(student=instance, **item_payload)
                     payload_item_ids.add(new_item.id)
@@ -445,50 +411,42 @@ class StudentProfileSerializer(BaseProfileSerializer):
 
 
 class EmployerProfileSerializer(BaseProfileSerializer):
-    # Read-only field to display the company's name from the related Company object
     company_name_display = serializers.CharField(source='company.name', read_only=True, allow_null=True)
-    
-    # Field to accept Company ID for linking. 'company' is the model field name.
     company_id = serializers.PrimaryKeyRelatedField(
         queryset=Company.objects.all(), 
         source='company', 
         allow_null=True, 
         required=False, 
-        write_only=True # Typically ID is for input, display comes from company_name_display or nested serializer
+        write_only=True
     )
 
     class Meta:
         model = EmployerProfile
         fields = [
-            "id", "name", "email", "role", "avatar", "phone", "location", # from user
-            "university", "company", # 'company' here is user.company (charfield from BaseProfileSerializer)
-            "created_at", "last_login", "is_active", # from user
+            "id", "name", "email", "role", "avatar", "phone", "location",
+            "university", "company",
+            "created_at", "last_login", "is_active",
             
-            "company_id",          # Input for EmployerProfile.company ForeignKey
+            "company_id",
             "company_name_display",# Output for EmployerProfile.company.name
             "industry", "website", "description" # Fields on EmployerProfile model
         ]
         read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active", "company_name_display"]
 
     def update(self, instance: EmployerProfile, validated_data):
-        # industry, website, description are for EmployerProfile, potentially to sync to Company model.
         industry = validated_data.get('industry', instance.industry)
         website = validated_data.get('website', instance.website)
         description = validated_data.get('description', instance.description)
 
-        # _update_profile_fields handles updating user fields and direct EmployerProfile fields.
-        # If 'company' (sourced from 'company_id' input) was in validated_data, 
-        # it will be set on `instance.company` by this call.
+
         instance = self._update_profile_fields(instance, validated_data)
 
-        linked_company_object = instance.company # This is EmployerProfile.company (the ForeignKey object)
+        linked_company_object = instance.company
 
         if linked_company_object:
-            # Sync attributes from EmployerProfile validated_data to the linked Company model
-            # This assumes EmployerProfile's industry, website, description can update the Company.
-            # The Company's name (linked_company_object.name) is its own source of truth and not changed here by profile fields.
-            
-            # Update company attributes if new values are provided for profile fields
+
+
+
             changed_company_attrs = False
             if 'industry' in validated_data and industry is not None:
                 linked_company_object.industry = industry
@@ -496,14 +454,11 @@ class EmployerProfileSerializer(BaseProfileSerializer):
             if 'website' in validated_data and website is not None:
                 linked_company_object.website = website
                 changed_company_attrs = True
-            # For description, we might want to append or sync based on a specific rule.
-            # Here, we'll update if it was in validated_data.
+
             if 'description' in validated_data and description is not None: 
-                linked_company_object.description = description # Or choose a different strategy
+                linked_company_object.description = description
                 changed_company_attrs = True
-            
-            # Location for company can come from user's location if it changed
-            # Check if user's location was part of the update from _update_profile_fields
+
             user_location = validated_data.get('user', {}).get('location', instance.user.location)
             if user_location is not None and linked_company_object.location != user_location:
                 linked_company_object.location = user_location
@@ -511,20 +466,16 @@ class EmployerProfileSerializer(BaseProfileSerializer):
             
             if changed_company_attrs:
                 linked_company_object.save()
-
-            # Update denormalized fields on CustomUser
             instance.user.company = linked_company_object.name
-            instance.user.company_id = str(linked_company_object.id) # Ensure company_id is a string if model expects it
+            instance.user.company_id = str(linked_company_object.id)
         else:
-            # No company linked to EmployerProfile, clear denormalized fields on CustomUser
             instance.user.company = None
             instance.user.company_id = None
         
         instance.user.save()
-        # instance.save() was called by _update_profile_fields if EmployerProfile fields changed.
-        # If only instance.company (FK) changed, and that change wasn't part of _update_profile_fields' direct save,
-        # then an explicit instance.save() might be needed here if _update_profile_fields doesn't re-save after FK changes.
-        # However, _update_profile_fields assigns to instance.company, and the main instance.save() at its end should persist it.
+
+
+
 
         return instance
 
@@ -557,9 +508,6 @@ class PublicProfileSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'role', 'avatar']
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JWT
-# ─────────────────────────────────────────────────────────────────────────────
 class VerifyTokenSerializer(serializers.Serializer):
     token = serializers.CharField()
 
@@ -597,9 +545,6 @@ class CompanySettingsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-# NEW SERIALIZERS FOR MORE INFORMATIVE PUBLIC PROFILES START HERE
-
-# Lightweight serializers for public student profile details
 class PublicEducationSerializer(serializers.ModelSerializer):
     start_date = serializers.DateField(format="%Y-%m", input_formats=['%Y-%m', '%Y-%m-%d'], allow_null=True, required=False)
     end_date = serializers.DateField(format="%Y-%m", input_formats=['%Y-%m', '%Y-%m-%d'], allow_null=True, required=False)
@@ -617,11 +562,10 @@ class PublicExperienceSerializer(serializers.ModelSerializer):
 class PublicStudentDataSerializer(serializers.ModelSerializer):
     education = PublicEducationSerializer(many=True, read_only=True, source='education.all')
     experience = PublicExperienceSerializer(many=True, read_only=True, source='experience.all')
-    # resumes = ResumeListSerializer(many=True, read_only=True, source='resumes.all') # Removed for privacy
 
     class Meta:
         model = StudentProfile
-        fields = ['bio', 'skills', 'achievements', 'education', 'experience'] # 'resumes' removed
+        fields = ['bio', 'skills', 'achievements', 'education', 'experience']
 
 class PublicCompanyDataSerializer(serializers.ModelSerializer):
     class Meta:
@@ -650,31 +594,26 @@ class PublicCampusDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = CampusProfile
         fields = ['department', 'position']
-
-# REVISED PublicProfileSerializer
 class PublicProfileSerializer(serializers.ModelSerializer):
-    # Explicitly define fields to match User model attributes directly.
-    # Meta.model = User, so sources are direct attributes of the User instance.
+
     id = serializers.IntegerField(read_only=True)
-    name = serializers.CharField(read_only=True)  # CustomUser.name is not nullable
-    role = serializers.CharField(read_only=True)  # CustomUser.role is not nullable
-    avatar = serializers.ImageField(read_only=True, use_url=True, allow_null=True, required=False) # Nullable in model
-    location = serializers.CharField(read_only=True, allow_blank=True, allow_null=True, required=False) # Nullable & blankable
-    university = serializers.CharField(read_only=True, allow_blank=True, allow_null=True, required=False) # Nullable & blankable
+    name = serializers.CharField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    avatar = serializers.ImageField(read_only=True, use_url=True, allow_null=True, required=False)
+    location = serializers.CharField(read_only=True, allow_blank=True, allow_null=True, required=False)
+    university = serializers.CharField(read_only=True, allow_blank=True, allow_null=True, required=False)
 
     student_info = PublicStudentDataSerializer(source='student_profile', read_only=True, required=False, allow_null=True)
     employer_info = PublicEmployerDataSerializer(source='employer_profile', read_only=True, required=False, allow_null=True)
     campus_info = PublicCampusDataSerializer(source='campus_profile', read_only=True, required=False, allow_null=True)
 
     class Meta:
-        model = User # Serializing the User model instance directly
+        model = User
         fields = [
             'id', 'name', 'role', 'avatar', 'location', 'university',
             'student_info', 'employer_info', 'campus_info'
         ]
-    
-    # Removed custom __init__ method that modified sources.
-    # Fields are now defined with correct (implicit or explicit direct) sources.
+
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -686,11 +625,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             representation.pop('employer_info', None)
         if role != 'campus':
             representation.pop('campus_info', None)
-        
-        # The *_info fields being null if the corresponding profile does not exist
-        # is handled by `allow_null=True` on those serializer fields and how DRF
-        # handles `source` attributes for related objects that might not exist.
+
+
              
         return representation
-
-# NEW SERIALIZERS FOR MORE INFORMATIVE PUBLIC PROFILES END HERE

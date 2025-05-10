@@ -2,7 +2,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 from core.storage import PublicAssetStorage
-# from jobs.models import Job  # Remove this import
 from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
@@ -55,7 +54,6 @@ class StudentProfile(models.Model):
         return f"Student Profile: {self.user.email}"
 
 def upload_to_student_directory(instance, filename):
-    # instance is Resume; instance.student is StudentProfile; instance.student.user is CustomUser
     user_id = instance.student.user.id
     return f"{user_id}/{filename}"
 class Resume(models.Model):
@@ -85,7 +83,6 @@ class Education(models.Model):
     gpa = models.CharField(max_length=10, blank=True, null=True)
 
     def clean(self):
-        # Convert YYYY-MM to YYYY-MM-DD if needed
         if isinstance(self.start_date, str) and len(self.start_date) == 7:
             self.start_date = f"{self.start_date}-01"
         if isinstance(self.end_date, str) and len(self.end_date) == 7:

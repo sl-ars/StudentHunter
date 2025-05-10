@@ -1,5 +1,5 @@
 import apiClient from "./client"
-import type { Job, Application, Company } from "@/lib/types"
+import type { Job, Application, Company, EmployerDashboardAnalytics, BackendAnalyticsPayload } from "@/lib/types"
 
 interface ApiResponse<T> {
   data: T
@@ -100,32 +100,30 @@ export const employerApi = {
   // Applications
   getApplications: async (params?: any): Promise<Application[]> => {
     try {
-      console.log("Fetching employer applications");
-      // The backend returns a paginated structure like: { status, message, data: { count, results: Application[] } }
-      const response = await apiClient.get<any>("/application/", { params })
+      console.log("Fetching employer applications with params:", params);
+      const response = await apiClient.get<ApiResponse<{ count: number; next: string | null; previous: string | null; results: Application[] }>>("/application/", { params })
       
-      // Check if the response structure is as expected and contains the applications array
       if (response.data && response.data.status === "success" && response.data.data && Array.isArray(response.data.data.results)) {
         console.log("Successfully fetched and processed employer applications:", response.data.data.results);
-        return response.data.data.results; // Return just the array of applications
+        return response.data.data.results;
       } else {
         console.warn("Unexpected response format or error in applications API response:", response.data);
-        return []; // Return empty array if data is not in expected format
+        return [];
       }
     } catch (error: any) {
       console.error("Error fetching applications:", error)
-      return []; // Return empty array on error to prevent UI breakage
+      return [];
     }
   },
 
-  getApplication: async (id: string) => {
+  getApplication: async (id: string): Promise<ApiResponse<Application>> => {
     const response = await apiClient.get<ApiResponse<Application>>(`/application/${id}/`)
     return response.data
   },
 
-  updateApplicationStatus: async (applicationId: string, status: string) => {
+  updateApplicationStatus: async (applicationId: string, status: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
-      const response = await apiClient.patch<ApiResponse<{ success: boolean }>>(`/application/${applicationId}/`, {
+      const response = await apiClient.patch<ApiResponse<{ success: boolean }>>(`/application/${applicationId}/update_status/`, {
         status,
       })
       return response.data
@@ -197,50 +195,59 @@ export const employerApi = {
   },
 
   // Analytics
-  getAnalytics: async (params?: { period?: string }) => {
+  getAnalytics: async (params?: { period?: string }): Promise<ApiResponse<EmployerDashboardAnalytics>> => {
     try {
-      console.log("Calling analytics API at /analytics/employer/analytics/");
-      const response = await apiClient.get<ApiResponse<any>>("/analytics/employer/analytics/", { params });
-      console.log("Analytics API response:", response);
-      
-      if (response.data) {
+      console.log("Calling analytics API at /analytics/employer/");
+      // apiClient.get returns the overall structure from the server.
+      // The server's response for this endpoint has a nested data structure.
+      const response = await apiClient.get<ApiResponse<BackendAnalyticsPayload>>("/analytics/employer/", { params });
+      console.log("Analytics API raw response object from apiClient.get:", response);
+
+      // response.data here is ApiResponse<BackendAnalyticsPayload>
+      // response.data.data is BackendAnalyticsPayload
+      // response.data.data.data is { summary, time_series, ... }
+      // response.data.data.data.summary is EmployerDashboardAnalytics
+
+      if (response.data.status === "success" && response.data.data?.data?.summary) {
         return {
-          status: "success",
-          data: response.data,
-          message: "Analytics retrieved successfully",
-        }
+          status: "success", // Use the outer status or the inner one if more relevant
+          message: response.data.message || response.data.data.message || "Analytics retrieved successfully",
+          data: response.data.data.data.summary, // This is the EmployerDashboardAnalytics object
+        };
       } else {
-        console.warn("API response didn't have expected data structure:", response.data);
+        // Handle cases where the expected nested structure is not found
+        const errorMessage = response.data.message || response.data.data?.message || "Analytics data is not in the expected format or an error occurred.";
+        console.warn("Analytics API response error or unexpected structure:", response.data);
         return {
           status: "error",
-          message: "API returned unexpected data format",
-          data: null,
-        }
+          message: errorMessage,
+          data: {} as EmployerDashboardAnalytics,
+        };
       }
     } catch (error: any) {
       console.error("Error fetching employer analytics:", error);
-      // Extract detailed error message if available
-      const errorMessage = error.response?.data?.error || 
-                          error.response?.data?.detail || 
-                          error.message || 
-                          "Failed to fetch analytics data";
-      
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || "Failed to fetch analytics data";
       return {
         status: "error",
         message: errorMessage,
-        data: null,
-      }
+        data: {} as EmployerDashboardAnalytics,
+      };
     }
   },
 
   // Interviews
-  getInterviews: async (filters?: any) => {
-    const response = await apiClient.get<ApiResponse<any>>("/interviews/", { params: filters })
-    return response.data
+  getInterviews: async (filters?: any): Promise<Application[]> => {
+    console.log("Fetching all applications with scheduled interviews, filters:", filters);
+    // To get all applications with an interview_date, we need a backend filter.
+    // Assuming backend supports `interview_scheduled=true` or `interview_date__isnull=false`.
+    // Using a hypothetical `interview_scheduled=true` for now.
+    // If backend uses `interview_date__isnull=false`, change param name accordingly.
+    const interviewFilters = { ...filters, interview_scheduled: 'true' }; 
+    return employerApi.getApplications(interviewFilters);
   },
 
-  scheduleInterview: async (applicationId: string, data: any) => {
-    const response = await apiClient.post<ApiResponse<any>>(`/application/${applicationId}/interview/`, data)
+  scheduleInterview: async (applicationId: string, data: { interview_date: string; notes?: string }): Promise<ApiResponse<Application>> => {
+    const response = await apiClient.post<ApiResponse<Application>>(`/application/${applicationId}/schedule_interview/`, data)
     return response.data
   },
 

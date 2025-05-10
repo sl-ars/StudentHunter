@@ -8,15 +8,13 @@ from django.db.models import F
 from rest_framework.exceptions import PermissionDenied
 
 from applications.models import Application, ApplicationStatus
-from applications.serializers import ApplicationSerializer, ApplicationDetailSerializer
+from applications.serializers import ApplicationSerializer, ApplicationDetailSerializer, ScheduleInterviewSerializer
 from jobs.models import Job
 from core.permissions import IsOwnerOrEmployer
 from core.utils import ok, fail
 from analytics.models import JobApplicationMetrics
 from users.models import StudentProfile
 
-# Constants for profile completeness (mirrored from users/serializers.py)
-# Ideally, this would be in a shared utility or model method.
 STUDENT_COMPLETENESS_CHECKS = {
     'name': lambda user, profile: bool(user.name and user.name.strip()),
     'avatar': lambda user, profile: bool(user.avatar),
@@ -33,18 +31,18 @@ STUDENT_COMPLETENESS_CHECKS = {
 
 def get_student_profile_completeness_percentage(user):
     if user.role != 'student':
-        return 100 # Not applicable, or could raise error
+        return 100
 
     try:
         profile = user.student_profile
     except StudentProfile.DoesNotExist:
-        return 0 # No profile means 0% complete
+        return 0
 
     filled_fields_count = 0
     total_fields = len(STUDENT_COMPLETENESS_CHECKS)
 
     if total_fields == 0:
-        return 100 # No checks defined, so it's complete
+        return 100
 
     for field_key, check_func in STUDENT_COMPLETENESS_CHECKS.items():
         if check_func(user, profile):
@@ -145,22 +143,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         if new_status not in ApplicationStatus.values:
             return fail('Invalid status', code=status.HTTP_400_BAD_REQUEST)
-
-        # Permission checks
         if request.user.role == 'employer':
             if application.job.created_by != request.user:
                 return fail('Permission denied. Not the job owner.', code=status.HTTP_403_FORBIDDEN)
         elif request.user.role == 'student':
-            # Students can only cancel their own applications
             if application.applicant != request.user:
                 return fail('Permission denied. Not your application.', code=status.HTTP_403_FORBIDDEN)
             if new_status != ApplicationStatus.CANCELED:
                 return fail('Permission denied. Students can only cancel applications.', code=status.HTTP_403_FORBIDDEN)
-        # Admins/Staff can presumably change any status (covered by IsOwnerOrEmployer or if you add IsAdminUser)
-        # If no specific student/employer check passed, and user is not staff, deny.
-        # This part might need refinement based on IsOwnerOrEmployer or other global permissions
-        elif not request.user.is_staff: # Example: if IsOwnerOrEmployer doesn't cover admins well for this
-             pass # Let it proceed if student/employer checks didn't explicitly deny
+
+
+        elif not request.user.is_staff:
+             pass
 
 
         old_status = application.status
@@ -180,41 +174,39 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Schedule interview",
-        request={
-            'application/json': {
-                'schema': {
-                    'type': 'object',
-                    'properties': {
-                        'interview_date': {'type': 'string', 'format': 'date-time'},
-                        'notes': {'type': 'string', 'nullable': True}
-                    },
-                    'required': ['interview_date']
-                }
-            }
-        },
+        request=ScheduleInterviewSerializer,
         responses={
-            200: ApplicationSerializer,
-            400: {'description': 'Invalid data provided.'},
-            403: {'description': 'Permission denied.'},
+            200: ApplicationDetailSerializer,
+            400: {'description': 'Invalid data. Interview date is required or data format is incorrect.'},
+            403: {'description': 'Permission denied. User is not authorized or is a student.'},
             404: {'description': 'Application not found.'}
         }
     )
     @action(detail=True, methods=['post'])
     def schedule_interview(self, request, pk=None):
         application = self.get_object()
-        if request.user.role == 'employer' and application.job.created_by != request.user:
-            return fail('Permission denied.', code=status.HTTP_403_FORBIDDEN)
-        elif request.user.role == 'student':
-            return fail('Permission denied.', code=status.HTTP_403_FORBIDDEN)
-        interview_date = request.data.get('interview_date')
-        notes = request.data.get('notes', application.notes)
-        if not interview_date:
-            return fail('Interview date is required', code=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.role == 'student':
+            return fail('Permission denied. Students cannot schedule interviews.', code=status.HTTP_403_FORBIDDEN)
+
+
+
+
+        serializer = ScheduleInterviewSerializer(data=request.data)
+        if not serializer.is_valid():
+            return fail('Invalid data provided.', errors=serializer.errors, code=status.HTTP_400_BAD_REQUEST)
+        
+        validated_data = serializer.validated_data
+        interview_date = validated_data.get('interview_date')
+        notes = validated_data.get('notes', application.notes) 
+        
         application.interview_date = interview_date
         application.notes = notes
-        application.status = ApplicationStatus.INTERVIEWED
+        application.status = ApplicationStatus.INTERVIEWED 
         application.save()
-        return ok(self.get_serializer(application).data)
+        
+        response_serializer = ApplicationDetailSerializer(application, context=self.get_serializer_context())
+        return ok(response_serializer.data)
 
     @extend_schema(
         summary="Application statistics",
@@ -239,18 +231,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             applications = Application.objects.filter(applicant=user)
             result['total'] = applications.count()
             result['recent'] = applications.filter(created_at__gte=timezone.now() - timezone.timedelta(days=7)).count()
-        elif user.is_staff: # Admins see all
+        elif user.is_staff:
             applications_qs = Application.objects.all()
-            all_jobs = Job.objects.all() # Moved this up
+            all_jobs = Job.objects.all()
             result['total'] = applications_qs.count()
             result['recent'] = applications_qs.filter(created_at__gte=timezone.now() - timezone.timedelta(days=7)).count()
             result['by_job_type'] = {
-                # Ensure job_type is a string key, especially if it could be None/unexpected from DB
                 str(job_type): applications_qs.filter(job__type=job_type).count()
                 for job_type in all_jobs.values_list('type', flat=True).distinct() if job_type
             }
             result['by_location'] = {
-                # Ensure location is a string key
                 str(location): applications_qs.filter(job__location=location).count()
                 for location in all_jobs.values_list('location', flat=True).distinct() if location
             }

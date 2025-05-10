@@ -9,14 +9,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import ProtectedRoute from "@/components/protected-route"
-import { FileText, CalendarDays, Briefcase, UserCircle, Mail, ExternalLink, CheckCircle, XCircle, Clock, Phone } from "lucide-react"
+import { FileText, CalendarDays, Briefcase, UserCircle, Mail, ExternalLink, CheckCircle, XCircle, Clock, Phone, MessageSquare } from "lucide-react"
 import Link from "next/link"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 export default function ApplicationDetailsPage() {
   const params = useParams()
   const applicationId = params.id as string
   const [application, setApplication] = useState<Application | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [interviewDate, setInterviewDate] = useState("")
+  const [interviewNotes, setInterviewNotes] = useState("")
 
   useEffect(() => {
     if (applicationId) {
@@ -54,6 +62,31 @@ export default function ApplicationDetailsPage() {
     }
   };
 
+  const handleScheduleInterviewSubmit = async () => {
+    if (!application || !interviewDate) {
+      toast.error("Interview date is required.");
+      return;
+    }
+    try {
+      const response = await employerApi.scheduleInterview(application.id, { 
+        interview_date: interviewDate, 
+        notes: interviewNotes 
+      });
+      if (response.status === "success" && response.data) {
+        setApplication(response.data);
+        toast.success("Interview scheduled successfully!");
+        setShowScheduleModal(false);
+        setInterviewDate("");
+        setInterviewNotes("");
+      } else {
+        toast.error(response.message || "Failed to schedule interview.");
+      }
+    } catch (error) {
+      console.error("Error scheduling interview:", error);
+      toast.error("An error occurred while scheduling the interview.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center items-center min-h-screen">
@@ -70,15 +103,11 @@ export default function ApplicationDetailsPage() {
     )
   }
 
-  const jobDetails = typeof application.job === 'object' ? application.job : application.job_details;
-  const displayName = application.applicant_name?.trim() ? application.applicant_name.trim() : 
-                      (typeof application.applicant === 'object' && application.applicant.name?.trim()) ? application.applicant.name.trim() : "Unnamed Applicant";
-  const avatarFallbackChar = displayName.charAt(0).toUpperCase();
+  const jobDetails = typeof application.job === 'object' ? application.job : application.job_details;;
+  
   const applicantUser = typeof application.applicant === 'object' ? application.applicant : null;
 
-  // Check if resume is a string and then if it looks like a link.
-  const isResumeLink = typeof application.resume === 'string' && 
-                       (application.resume.startsWith('/') || application.resume.startsWith('http'));
+  const avatarFallbackChar = applicantUser?.name.charAt(0).toUpperCase();
 
   return (
     <ProtectedRoute roles={["employer"]}>
@@ -88,19 +117,19 @@ export default function ApplicationDetailsPage() {
             <div className="flex items-center space-x-4">
               <Avatar className="h-16 w-16">
                 <AvatarImage 
-                  src={applicantUser?.avatar} 
-                  alt={displayName} 
+                  src={applicantUser?.avatar } 
+                  alt={applicantUser?.name || "Unnamed Applicant"} 
                 />
                 <AvatarFallback>{avatarFallbackChar}</AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-2xl">{displayName}</CardTitle>
+                <CardTitle className="text-2xl">{applicantUser?.name || "Unnamed Applicant"}</CardTitle>
                 <CardDescription className="flex items-center text-gray-600">
-                  <Mail className="mr-2 h-4 w-4" /> {applicantUser?.email || application.applicant_email || "No email provided"}
+                  <Mail className="mr-2 h-4 w-4" /> {applicantUser?.email || "No email provided"}
                 </CardDescription>
-                {application.applicant_phone && (
+                {applicantUser?.phone && (
                   <CardDescription className="flex items-center text-gray-600 mt-1">
-                    <Phone className="mr-2 h-4 w-4" /> {application.applicant_phone}
+                    <Phone className="mr-2 h-4 w-4" /> {applicantUser?.phone}
                   </CardDescription>
                 )}
               </div>
@@ -140,15 +169,13 @@ export default function ApplicationDetailsPage() {
             <div>
               <h3 className="text-lg font-semibold mb-2 flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" />Resume</h3>
               {application.resume ? (
-                isResumeLink ? (
-                  <Link href={application.resume} target="_blank" rel="noopener noreferrer">
+               
+                  <Link href={application.resume.url || ""} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline">
                       View Resume <ExternalLink className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
-                ) : (
-                  <p className="text-gray-700">Resume attached (ID: {application.resume})</p>
-                )
+                
               ) : (
                 <p className="text-gray-700">No resume provided.</p>
               )}
@@ -170,7 +197,18 @@ export default function ApplicationDetailsPage() {
               )}
             </div>
 
-            {application.status !== "accepted" && application.status !== "rejected" && (
+            {(application.status === "pending" || application.status === "reviewing") && (
+              <div className="flex space-x-4 pt-4 border-t">
+                <Button onClick={() => setShowScheduleModal(true)} variant="default">
+                  <CalendarDays className="mr-2 h-4 w-4" /> Schedule Interview
+                </Button>
+                <Button onClick={() => handleUpdateStatus("rejected")} variant="destructive">
+                  <XCircle className="mr-2 h-4 w-4" /> Reject
+                </Button>
+              </div>
+            )}
+
+            {application.status === "interviewed" && (
               <div className="flex space-x-4 pt-4 border-t">
                 <Button onClick={() => handleUpdateStatus("accepted")} variant="default" className="bg-green-600 hover:bg-green-700">
                   <CheckCircle className="mr-2 h-4 w-4" /> Accept
@@ -180,8 +218,53 @@ export default function ApplicationDetailsPage() {
                 </Button>
               </div>
             )}
+
           </CardContent>
         </Card>
+
+        <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Schedule Interview</DialogTitle>
+              <DialogDescription>
+                Set the date, time, and any notes for the interview.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="interviewDate" className="text-right">
+                  Date & Time
+                </Label>
+                <Input 
+                  id="interviewDate" 
+                  type="datetime-local" 
+                  value={interviewDate} 
+                  onChange={(e) => setInterviewDate(e.target.value)} 
+                  className="col-span-3" 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="interviewNotes" className="text-right">
+                  Notes
+                </Label>
+                <Textarea 
+                  id="interviewNotes" 
+                  value={interviewNotes} 
+                  onChange={(e) => setInterviewNotes(e.target.value)} 
+                  placeholder="Optional notes for the interview (e.g., virtual meeting link, topics)" 
+                  className="col-span-3" 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button type="button" onClick={handleScheduleInterviewSubmit}>Confirm & Schedule</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </ProtectedRoute>
   )

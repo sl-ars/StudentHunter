@@ -20,7 +20,7 @@ class JobSerializer(serializers.ModelSerializer):
                            'created_by_name', 'application_stats', 'is_applied', 'is_saved']
     
     def get_application_stats(self, obj):
-        """Получить статистику по заявкам на вакансию."""
+
         stats = {}
         if self.context and 'request' in self.context:
             user = self.context['request'].user
@@ -32,17 +32,17 @@ class JobSerializer(serializers.ModelSerializer):
         return stats
     
     def get_company_name(self, obj):
-        """Получить название компании из объекта Company, если оно существует."""
+
         return obj.company
     
     def get_created_by_name(self, obj):
-        """Получить имя создателя вакансии."""
+
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}"
         return None
     
     def get_is_applied(self, obj):
-        """Проверить, подал ли текущий пользователь заявку на эту вакансию."""
+
         if self.context and 'request' in self.context:
             user = self.context['request'].user
             if user.is_authenticated and user.role == 'student':
@@ -50,7 +50,7 @@ class JobSerializer(serializers.ModelSerializer):
         return False
     
     def get_is_saved(self, obj):
-        """Check if the job is saved by the current student user."""
+
         request = self.context.get('request')
         if request and request.user.is_authenticated and request.user.role == 'student':
             if hasattr(request.user, 'student_profile') and request.user.student_profile:
@@ -58,28 +58,24 @@ class JobSerializer(serializers.ModelSerializer):
         return False
     
     def validate(self, data):
-        """Пользовательская валидация для полей вакансии."""
-        # Проверяем, что дедлайн позже текущей даты
+
+
         deadline = data.get('deadline')
         posted_date = data.get('posted_date')
         
         if deadline and posted_date and deadline < posted_date:
             raise serializers.ValidationError("Deadline must be later than the posting date.")
-        
-        # Проверяем, что указаны требования для вакансии
         if 'requirements' in data and not data.get('requirements'):
             raise serializers.ValidationError("Job requirements must be specified.")
         
         return data
     
     def create(self, validated_data):
-        """Переопределение create для добавления дополнительной логики."""
-        # Если пользователь - работодатель, добавляем данные компании
+
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             if request.user.role == 'employer' and not validated_data.get('company_id'):
-                # Проверяем, есть ли у пользователя компания
-                companies = Company.objects.filter(id=1)  # Заглушка
+                companies = Company.objects.filter(id=1)
                 if companies.exists():
                     validated_data['company'] = companies.first().name
                     validated_data['company_id'] = companies.first().id
@@ -87,7 +83,6 @@ class JobSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class JobListSerializer(serializers.ModelSerializer):
-    """Облегченный сериализатор для списка вакансий."""
     company_name = serializers.SerializerMethodField(read_only=True)
     is_saved = serializers.SerializerMethodField(read_only=True)
     
@@ -98,12 +93,9 @@ class JobListSerializer(serializers.ModelSerializer):
                  'application_count', 'is_saved']
     
     def get_company_name(self, obj):
-        # Just return the company field directly
-        # to avoid trying to convert company_id to a numeric ID
         return obj.company
 
     def get_is_saved(self, obj):
-        """Check if the job is saved by the current student user."""
         request = self.context.get('request')
         if request and request.user.is_authenticated and request.user.role == 'student':
             if hasattr(request.user, 'student_profile') and request.user.student_profile:
