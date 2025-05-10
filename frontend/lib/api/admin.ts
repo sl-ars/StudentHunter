@@ -11,7 +11,6 @@ import {
 } from '@/lib/types';
 import { API_URL } from '../utils/config';
 
-// Исправляем путь API чтобы он соответствовал бэкенду
 const API_PATH = `/admin`;
 
 export interface AdminQueryParams {
@@ -19,7 +18,7 @@ export interface AdminQueryParams {
   limit?: number;
   search?: string;
   ordering?: string;
-  [key: string]: any; // Для дополнительных фильтров
+  [key: string]: any; 
 }
 
 export interface CreateUserData {
@@ -37,9 +36,6 @@ export interface CreateUserData {
 }
 
 export const adminApi = {
-  // ПОЛЬЗОВАТЕЛИ
-  
-  // Получение списка пользователей
   getUsers: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/users/`, { params });
@@ -50,7 +46,6 @@ export const adminApi = {
     }
   },
 
-  // Получение отдельного пользователя
   getUser: async (id: string) => {
     try {
       const response = await apiClient.get(`${API_PATH}/users/${id}/`);
@@ -61,7 +56,6 @@ export const adminApi = {
     }
   },
 
-  // Удаление пользователя
   deleteUser: async (id: string) => {
     try {
       const response = await apiClient.delete(`${API_PATH}/users/${id}/`);
@@ -72,29 +66,23 @@ export const adminApi = {
     }
   },
 
-  // Обновление данных пользователя
   updateUser: async (id: string, userData: any) => {
     try {
       console.log("Starting user update for ID:", id);
       console.log("Raw update data received:", userData);
       
-      // 1. Создаем копию данных для отправки
       const dataToSend = { ...userData };
       
-      // 2. Всегда обновляем name из first_name и last_name
       if (userData.first_name !== undefined || userData.last_name !== undefined) {
         dataToSend.name = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
         console.log("Generated name field:", dataToSend.name);
       }
       
-      // 3. Удаляем поля first_name и last_name перед отправкой на сервер,
-      // так как бэкенд ожидает только поле name
       delete dataToSend.first_name;
       delete dataToSend.last_name;
       
       console.log("Final data to be sent to API:", dataToSend);
       
-      // 4. Отправляем запрос
       const response = await apiClient.patch(`${API_PATH}/users/${id}/`, dataToSend);
       console.log("Update response status:", response.status);
       console.log("Update response data:", response.data);
@@ -116,17 +104,14 @@ export const adminApi = {
     }
   },
 
-  // Создание нового пользователя
   createUser: async (userData: CreateUserData) => {
     try {
       console.log("Admin API: Creating user with data:", userData);
       
-      // Если переданы first_name и last_name, но не name, то объединяем их в name
       if ((userData.first_name || userData.last_name) && !userData.name) {
         userData.name = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
       }
-      
-      // Создаем новый объект без first_name и last_name
+    
       const cleanedData: Omit<CreateUserData, 'first_name' | 'last_name'> = {
         name: userData.name,
         email: userData.email,
@@ -159,34 +144,59 @@ export const adminApi = {
     }
   },
 
-  // Массовое создание пользователей
-  bulkCreateUsers: async (usersData: CreateUserData[]) => {
+  bulkCreateUsers: async (file: File) => {
     try {
-      const response = await apiClient.post(`${API_PATH}/users/bulk/`, { users: usersData });
+      console.log("Attempting to bulk create users with file:", file);
+      if (!(file instanceof File)) {
+        console.error("bulkCreateUsers was called with an invalid file object:", file);
+        return {
+          status: 'error',
+          message: 'Invalid file object provided.',
+          data: { success_count: 0, failed_count: 0, details: [] }
+        };
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await apiClient.post(`${API_PATH}/users/bulk/`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+    
+      const backendPayload = response.data;
+      const countsAndDetails = backendPayload.data; 
+
       return {
-        status: 'success',
-        message: 'Users created successfully',
-        data: {
-          success: response.data.success || 0,
-          failed: response.data.failed || 0,
-          details: response.data.details || []
+        status: backendPayload.status || 'success',
+        message: backendPayload.message || 'Users processed successfully',
+        data: { 
+          success_count: countsAndDetails?.success_count || 0,
+          failed_count: countsAndDetails?.failed_count || 0,
+          details: countsAndDetails?.details || []
         }
       };
     } catch (error: any) {
       console.error('Error bulk creating users:', error);
+      const backendMessage = error.response?.data?.message || 
+                             (error.response?.data?.details && typeof error.response.data.details === 'string' 
+                                ? error.response.data.details 
+                                : 'Failed to process file');
+
+      const errorDetails = error.response?.data?.data?.details || error.response?.data?.details || [];
       return {
         status: 'error',
-        message: error.response?.data?.message || 'Failed to create users',
+        message: backendMessage,
         data: {
-          success: 0,
-          failed: usersData.length,
-          details: []
+          success_count: 0,
+          failed_count: 0, 
+          details: errorDetails
         }
       };
     }
   },
 
-  // Изменение статуса пользователя (активен/заблокирован)
   toggleUserActive: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/users/${id}/toggle_active/`);
@@ -197,7 +207,6 @@ export const adminApi = {
     }
   },
 
-  // Статистика по пользователям
   getUserStats: async () => {
     try {
       const response = await apiClient.get(`${API_PATH}/users/stats/`);
@@ -208,9 +217,6 @@ export const adminApi = {
     }
   },
 
-  // ВАКАНСИИ
-  
-  // Получение списка вакансий
   getJobs: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/jobs/`, { params });
@@ -221,7 +227,6 @@ export const adminApi = {
     }
   },
 
-  // Получение отдельной вакансии
   getJob: async (id: string) => {
     try {
       const response = await apiClient.get(`${API_PATH}/jobs/${id}/`);
@@ -232,7 +237,6 @@ export const adminApi = {
     }
   },
 
-  // Изменение статуса вакансии (активна/не активна)
   toggleJobActive: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/jobs/${id}/toggle_active/`);
@@ -243,7 +247,6 @@ export const adminApi = {
     }
   },
 
-  // Добавление/удаление вакансии из рекомендуемых
   toggleJobFeatured: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/jobs/${id}/feature/`);
@@ -254,9 +257,6 @@ export const adminApi = {
     }
   },
 
-  // КОМПАНИИ
-  
-  // Получение списка компаний
   getCompanies: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/companies/`, { params });
@@ -267,7 +267,6 @@ export const adminApi = {
     }
   },
 
-  // Получение отдельной компании
   getCompany: async (id: string) => {
     try {
       const response = await apiClient.get(`${API_PATH}/companies/${id}/`);
@@ -278,7 +277,6 @@ export const adminApi = {
     }
   },
   
-  // Alias for getCompany for backward compatibility
   getCompanyById: async (id: string) => {
     try {
       const response = await apiClient.get(`${API_PATH}/companies/${id}/`);
@@ -289,7 +287,6 @@ export const adminApi = {
     }
   },
 
-  // Создание новой компании
   createCompany: async (companyData: any) => {
     try {
       console.log("Creating company with data:", companyData);
@@ -309,7 +306,6 @@ export const adminApi = {
     }
   },
 
-  // Удаление компании
   deleteCompany: async (id: string) => {
     try {
       const response = await apiClient.delete(`${API_PATH}/companies/${id}/`);
@@ -320,7 +316,6 @@ export const adminApi = {
     }
   },
 
-  // Обновление данных компании
   updateCompany: async (id: string, companyData: any) => {
     try {
       const response = await apiClient.patch(`${API_PATH}/companies/${id}/`, companyData);
@@ -331,7 +326,6 @@ export const adminApi = {
     }
   },
 
-  // Верификация компании
   verifyCompany: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/companies/${id}/verify/`);
@@ -342,7 +336,6 @@ export const adminApi = {
     }
   },
 
-  // Добавление/удаление компании из рекомендуемых
   toggleCompanyFeatured: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/companies/${id}/feature/`);
@@ -353,9 +346,6 @@ export const adminApi = {
     }
   },
 
-  // ЗАЯВКИ
-  
-  // Получение списка заявок
   getApplications: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/applications/`, { params });
@@ -366,7 +356,6 @@ export const adminApi = {
     }
   },
 
-  // Получение отдельной заявки
   getApplication: async (id: string) => {
     try {
       const response = await apiClient.get(`${API_PATH}/applications/${id}/`);
@@ -377,9 +366,6 @@ export const adminApi = {
     }
   },
 
-  // ЛОГИ МОДЕРАЦИИ
-  
-  // Получение логов модерации
   getModerationLogs: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/moderation-logs/`, { params });
@@ -390,9 +376,6 @@ export const adminApi = {
     }
   },
 
-  // УВЕДОМЛЕНИЯ
-  
-  // Получение уведомлений для администратора
   getNotifications: async (params?: AdminQueryParams) => {
     try {
       const response = await apiClient.get(`${API_PATH}/notifications/`, { params });
@@ -403,7 +386,6 @@ export const adminApi = {
     }
   },
 
-  // Отметка уведомления как прочитанного
   markNotificationAsRead: async (id: string) => {
     try {
       const response = await apiClient.post(`${API_PATH}/notifications/${id}/mark_as_read/`);
@@ -414,7 +396,6 @@ export const adminApi = {
     }
   },
 
-  // Отметка всех уведомлений как прочитанных
   markAllNotificationsAsRead: async () => {
     try {
       const response = await apiClient.post(`${API_PATH}/notifications/mark_all_as_read/`);
@@ -425,9 +406,6 @@ export const adminApi = {
     }
   },
 
-  // СТАТИСТИКА ДАШБОРДА
-  
-  // Получение общей статистики для дашборда
   getDashboardStats: async () => {
     try {
       const response = await apiClient.get(`${API_PATH}/dashboard/stats/`);
@@ -438,9 +416,6 @@ export const adminApi = {
     }
   },
 
-  // НАСТРОЙКИ ДАШБОРДА
-  
-  // Получение настроек дашборда для текущего администратора
   getDashboardSettings: async () => {
     try {
       const response = await apiClient.get(`${API_PATH}/dashboard-settings/`);
@@ -451,7 +426,6 @@ export const adminApi = {
     }
   },
 
-  // Обновление настроек дашборда
   updateDashboardSettings: async (settings: any) => {
     try {
       const response = await apiClient.put(`${API_PATH}/dashboard-settings/`, settings);
@@ -462,21 +436,17 @@ export const adminApi = {
     }
   },
 
-  // Специальная функция для обновления только имени пользователя
   updateUserName: async (id: string, firstName: string, lastName: string) => {
     try {
-      // Создаем объект только с полем name
       const nameData = {
         name: `${firstName} ${lastName}`.trim()
       };
       
       console.log(`Direct name update for user ${id}:`, nameData);
       
-      // Специальный запрос для обновления только имени
       const response = await apiClient.patch(`${API_PATH}/users/${id}/`, nameData);
       console.log("Name update response:", response.data);
-      
-      // Проверим обновленные данные
+    
       try {
         const updatedUser = await apiClient.get(`${API_PATH}/users/${id}/`);
         console.log("User data after name update:", updatedUser.data);
@@ -501,9 +471,6 @@ export const adminApi = {
     }
   },
 
-  // АНАЛИТИКА
-  
-  // Получение данных аналитики
   getAnalytics: async (params?: { period?: string; year?: number }) => {
     try {
       const response = await apiClient.get(`${API_PATH}/analytics/`, { params });
@@ -522,16 +489,12 @@ export const adminApi = {
     }
   },
 
-  // СИСТЕМНЫЕ НАСТРОЙКИ
-  
-  // Получение системных настроек
   getSettings: async () => {
     try {
       console.log("Calling settings API endpoint...");
       const response = await apiClient.get(`${API_PATH}/settings/`);
       console.log("Raw settings API response:", response);
       
-      // Возвращаем данные в ожидаемом формате
       if (response && response.data) {
         return response.data;
       } else {
@@ -544,7 +507,6 @@ export const adminApi = {
       }
     } catch (error: any) {
       console.error('Error fetching system settings:', error);
-      // Возвращаем структурированный объект с ошибкой
       return {
         status: 'error',
         message: error.response?.data?.message || 'Failed to fetch system settings',
@@ -553,7 +515,6 @@ export const adminApi = {
     }
   },
   
-  // Обновление системных настроек
   updateSettings: async (settings: any) => {
     try {
       const response = await apiClient.put(`${API_PATH}/settings/`, settings);

@@ -2,7 +2,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 from core.storage import PublicAssetStorage
-# from jobs.models import Job  # Remove this import
 from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
@@ -39,6 +38,11 @@ class CustomUser(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
 
+    def save(self, *args, **kwargs):
+        if self.role == 'admin':
+            self.is_staff = True
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.email} ({self.role})"
 
@@ -55,7 +59,6 @@ class StudentProfile(models.Model):
         return f"Student Profile: {self.user.email}"
 
 def upload_to_student_directory(instance, filename):
-    # instance is Resume; instance.student is StudentProfile; instance.student.user is CustomUser
     user_id = instance.student.user.id
     return f"{user_id}/{filename}"
 class Resume(models.Model):
