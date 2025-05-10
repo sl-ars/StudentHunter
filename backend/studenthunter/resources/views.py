@@ -1,43 +1,59 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q, F
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from resources.models import Resource
-from resources.serializers import ResourceSerializer
-from resources.permissions import IsAdminOrReadOnly
+from resources.models import Resource, ResourceFile
+from resources.serializers import ResourceSerializer, ResourceFileSerializer
+from resources.permissions import ResourcePermissions
+from rest_framework.parsers import MultiPartParser, FormParser
 
 @extend_schema(tags=['resources'])
 class ResourceViewSet(viewsets.ModelViewSet):
-    queryset = Resource.objects.all()
+    queryset = Resource.objects.all().prefetch_related('files')
     serializer_class = ResourceSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [ResourcePermissions]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {
+        'category': ['exact'],
+        'type': ['exact'],
+        'is_demo': ['exact'],
+        'author__id': ['exact'],
+    }
+    search_fields = ['title', 'description', 'category', 'tags', 'author__name']
+    ordering_fields = ['published_at', 'views', 'downloads', 'title', 'category', 'type', 'estimated_time']
+    ordering = ['-published_at']
 
     def get_queryset(self):
-        queryset = Resource.objects.all()
-        
-        category = self.request.query_params.get('category', None)
-        if category and category != 'All':
-            queryset = queryset.filter(category=category)
-        
-        resource_type = self.request.query_params.get('type', None)
-        if resource_type:
-            queryset = queryset.filter(type=resource_type)
-        
-        search = self.request.query_params.get('search', None)
-        if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(description__icontains=search) |
-                Q(tags__name__in=[search])
-            )
-        
-        if not self.request.user.is_authenticated or not self.request.user.has_perm('resources.view_resource'):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if not user.is_authenticated:
             queryset = queryset.filter(is_demo=True)
         
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user, created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    @extend_schema(
+        summary="Increment view count for a resource",
+        request=None,
+        responses={200: ResourceSerializer}
+    )
+    @action(detail=True, methods=['post'])
+    def view(self, request, pk=None):
+        resource = self.get_object()
+        Resource.objects.filter(pk=pk).update(views=F('views') + 1)
+        resource.refresh_from_db()
+        serializer = self.get_serializer(resource)
+        return Response(serializer.data)
 
     @extend_schema(
         summary="List all distinct resource categories",
@@ -46,7 +62,8 @@ class ResourceViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def categories(self, request):
-        categories = Resource.objects.values_list('category', flat=True).distinct()
+        queryset = self.filter_queryset(self.get_queryset())
+        categories = queryset.values_list('category', flat=True).distinct().order_by('category')
         return Response(list(categories))
 
     @extend_schema(
@@ -56,104 +73,74 @@ class ResourceViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def types(self, request):
-        types = Resource.objects.values_list('type', flat=True).distinct()
+        queryset = self.filter_queryset(self.get_queryset())
+        types = queryset.values_list('type', flat=True).distinct().order_by('type')
         return Response(list(types))
 
+@extend_schema(tags=['resource-files'])
+class ResourceFileViewSet(viewsets.ModelViewSet):
+    queryset = ResourceFile.objects.all()
+    serializer_class = ResourceFileSerializer
+    permission_classes = [ResourcePermissions]
+    parser_classes = [MultiPartParser, FormParser]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {
+        'resource': ['exact'],
+        'file_type': ['exact'],
+        'uploaded_by__id': ['exact'],
+    }
+    search_fields = ['title', 'resource__title']
+    ordering_fields = ['created_at', 'title', 'size', 'file_type']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+
+        if not user.is_authenticated:
+            queryset = queryset.filter(resource__is_demo=True)
+        
+        return queryset
+
+    def perform_create(self, serializer):
+        resource_id = self.request.data.get('resource')
+        if resource_id:
+            try:
+                resource = Resource.objects.get(pk=resource_id)
+                if not self.permission_classes[0]().has_object_permission(self.request, self, resource):
+                    self.permission_denied(
+                        self.request, message='You do not have permission to add files to this resource.'
+                    )
+            except Resource.DoesNotExist:
+                raise serializers.ValidationError({"resource": "Resource not found."})
+        else:
+            raise serializers.ValidationError({"resource": "This field is required."})
+
+        serializer.save(uploaded_by=self.request.user)
+
     @extend_schema(
-        summary="Download Resource File(s)",
-        description=(
-            "Retrieves download link(s) for a resource. Increments download count. "
-            "If the resource has a single file, it returns a direct link. "
-            "If multiple files, it returns a list of file objects with their links."
-        ),
+        summary="Download a resource file",
+        description="Retrieves a resource file and increments the parent resource's download count.",
         responses={
-            200: {
-                'oneOf': [
-                    {
-                        'type': 'object',
-                        'properties': {
-                            'link': {'type': 'string', 'format': 'uri'},
-                            'openInNewTab': {'type': 'boolean'}
-                        },
-                        'description': 'Response for a single file resource.'
-                    },
-                    {
-                        'type': 'object',
-                        'properties': {
-                            'files': {
-                                'type': 'array',
-                                'items': {
-                                    'type': 'object',
-                                    'properties': {
-                                        'id': {'type': 'string', 'format': 'uuid'},
-                                        'title': {'type': 'string'},
-                                        'url': {'type': 'string', 'format': 'uri'},
-                                        'type': {'type': 'string', 'description': 'File MIME type or category'},
-                                        'size': {'type': 'integer', 'description': 'File size in bytes'},
-                                        'openInNewTab': {'type': 'boolean'}
-                                    }
-                                }
-                            }
-                        },
-                        'description': 'Response for a multi-file resource.'
-                    }
-                ]
-            },
-            404: {'description': 'Resource not found.'}
+            200: {'description': 'File download initiated', 'content': {'application/*': {'schema': {'type': 'string', 'format': 'binary'}}}},
+            404: {'description': 'File not found.'}
         }
     )
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
-        resource = self.get_object()
-        resource.downloads += 1
-        resource.save(update_fields=['downloads'])
+        instance = self.get_object()
+
+        if not instance.resource.is_demo and not request.user.is_authenticated:
+            self.permission_denied(request, message='Authentication required to download this file.')
+
+        Resource.objects.filter(pk=instance.resource.pk).update(downloads=F('downloads') + 1)
         
-        if resource.files.count() == 1:
-            file_instance = resource.files.first()
+        if instance.file:
+            file_url = request.build_absolute_uri(instance.file.url)
             return Response({
-                'link': request.build_absolute_uri(file_instance.file.url),
-                'openInNewTab': file_instance.open_in_new_tab
-            })
-        
-        files_data = [{
-            'id': str(file_instance.id),
-            'title': file_instance.title,
-            'url': request.build_absolute_uri(file_instance.file.url),
-            'type': file_instance.file_type,
-            'size': file_instance.size,
-            'openInNewTab': file_instance.open_in_new_tab
-        } for file_instance in resource.files.all()]
-        
-        return Response({'files': files_data})
-
-    @extend_schema(
-        summary="List all resources",
-        description="Retrieves a list of resources, optionally filtered by category, type, or search term. Unauthenticated users only see demo resources.",
-        parameters=[
-            OpenApiParameter(name='category', description='Filter by category name. Use "All" or omit for no category filter.', required=False, type=OpenApiTypes.STR),
-            OpenApiParameter(name='type', description='Filter by resource type.', required=False, type=OpenApiTypes.STR),
-            OpenApiParameter(name='search', description='Search term for title, description, or tags.', required=False, type=OpenApiTypes.STR)
-        ]
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(summary="Create a new resource")
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
-    @extend_schema(summary="Retrieve a resource by ID")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @extend_schema(summary="Update a resource by ID")
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @extend_schema(summary="Partially update a resource by ID")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @extend_schema(summary="Delete a resource by ID")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+                'message': 'File download ready.',
+                'file_url': file_url,
+                'open_in_new_tab': instance.open_in_new_tab
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)

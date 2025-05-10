@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import (
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from rest_framework.permissions import AllowAny
 from django.conf import settings
+from django.conf.urls.static import static
 
 from users.views import CustomRefreshView, CustomTokenObtainPairView, CustomVerifyView
 
@@ -25,7 +26,7 @@ urlpatterns = [
     path("api/user/", include("users.urls")),
     path('api/company/', include('companies.urls')),
     path('api/job/', include('jobs.urls')),
-    path('api/resource/', include('resources.urls')),
+    path('api/', include('resources.urls')),
     path('api/application/', include('applications.urls')),
     path('api/analytics/', include('analytics.urls')),
     path('api/admin/', include('admin_api.urls')),
@@ -41,4 +42,5 @@ if settings.DEBUG:
         path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema', permission_classes=[AllowAny]),
              name='redoc'),
     ]
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
