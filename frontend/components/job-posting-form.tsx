@@ -48,6 +48,8 @@ export function JobPostingForm({
   const [formData, setFormData] = useState(
     initialData ? {
       ...initialData,
+      salary_min: initialData.salary_min || "",
+      salary_max: initialData.salary_max || "",
       requirements: Array.isArray(initialData.requirements) 
         ? initialData.requirements.join('\n') 
         : initialData.requirements || "",
@@ -61,7 +63,8 @@ export function JobPostingForm({
       title: "",
       type: "",
       location: "",
-      salary: "",
+      salary_min: "",
+      salary_max: "",
       description: "",
       requirements: "",
       responsibilities: "",
@@ -107,6 +110,8 @@ export function JobPostingForm({
       // Convert newline-separated text to arrays for JSON fields
       const processedData = {
         ...formData,
+        salary_min: formData.salary_min ? parseInt(String(formData.salary_min), 10) : undefined,
+        salary_max: formData.salary_max ? parseInt(String(formData.salary_max), 10) : undefined,
         requirements: Array.isArray(formData.requirements) 
           ? formData.requirements 
           : formData.requirements.split('\n').filter(Boolean),
@@ -120,6 +125,7 @@ export function JobPostingForm({
         company: formData.company,
         company_id: formData.company_id,
       }
+      delete (processedData as any).salary;
 
       await onSubmit(processedData)
       toast({
@@ -195,13 +201,24 @@ export function JobPostingForm({
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="salary">Salary Range</label>
+              <label htmlFor="salary_min">Minimum Salary</label>
               <Input
-                id="salary"
-                value={formData.salary}
-                onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                placeholder="e.g. $50,000 - $70,000"
-                required
+                id="salary_min"
+                type="number"
+                value={formData.salary_min}
+                onChange={(e) => setFormData({ ...formData, salary_min: e.target.value })}
+                placeholder="e.g. 50000"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="salary_max">Maximum Salary</label>
+              <Input
+                id="salary_max"
+                type="number"
+                value={formData.salary_max}
+                onChange={(e) => setFormData({ ...formData, salary_max: e.target.value })}
+                placeholder="e.g. 70000"
               />
             </div>
 

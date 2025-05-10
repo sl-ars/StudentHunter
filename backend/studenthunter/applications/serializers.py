@@ -10,6 +10,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
     job_company = serializers.CharField(source='job.company', read_only=True)
     applicant_name = serializers.SerializerMethodField(read_only=True)
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
+    applicant_phone = serializers.CharField(source='applicant.phone', read_only=True, allow_blank=True, allow_null=True)
     applicant_profile = serializers.SerializerMethodField(read_only=True)
     
     # Fields needed by frontend
@@ -20,12 +21,12 @@ class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = ['id', 'job', 'job_title', 'job_company', 'applicant', 'applicant_name', 
-                  'applicant_email', 'applicant_profile', 'status', 'cover_letter', 
+                  'applicant_email', 'applicant_phone', 'applicant_profile', 'status', 'cover_letter', 
                   'resume', 'created_at', 'updated_at', 'interview_date', 'notes',
                   'name', 'position', 'date']
-        read_only_fields = ['applicant', 'applicant_name', 'applicant_email', 'applicant_profile', 
+        read_only_fields = ['applicant', 'applicant_name', 'applicant_email', 'applicant_phone', 'applicant_profile', 
                            'job_title', 'job_company', 'created_at', 'updated_at',
-                           'name', 'position', 'date']
+                           'name', 'position', 'date', 'status', 'interview_date']
     
     def get_applicant_name(self, obj):
         if hasattr(obj.applicant, 'name') and obj.applicant.name:
@@ -55,18 +56,25 @@ class ApplicationSerializer(serializers.ModelSerializer):
         return None
     
     def validate(self, data):
-        """Проверяет, что пользователь не подавал заявку на эту вакансию ранее."""
+        """Проверяет, что пользователь не подавал заявку на эту вакансию ранее,
+           что вакансия активна, и что используется собственное резюме."""
         user = self.context['request'].user
         job = data.get('job')
-        
-        # При создании новой заявки
-        if self.instance is None:
+        resume = data.get('resume') # This will be a Resume instance or None
+
+        if self.instance is None:  # Only on create
             if Application.objects.filter(applicant=user, job=job).exists():
                 raise serializers.ValidationError("You have already applied for this job.")
-            
-            # Проверяем, что вакансия активна
-            if not job.is_active:
+
+            if job and not job.is_active: # Assuming Job model has is_active field
                 raise serializers.ValidationError("Cannot apply to inactive job.")
+
+            if resume:
+                # Assuming the Resume model has a 'user' field linking to the AUTH_USER_MODEL.
+                # Adjust 'resume.user' if the field name is different (e.g., 'resume.applicant').
+                # Corrected the check to use resume.student.user
+                if not hasattr(resume, 'student') or not hasattr(resume.student, 'user') or resume.student.user != user:
+                    raise serializers.ValidationError("You can only use your own resume.")
         
         return data
     
@@ -82,18 +90,19 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     job_details = serializers.SerializerMethodField(read_only=True)
     applicant_name = serializers.SerializerMethodField(read_only=True)
     applicant_email = serializers.EmailField(source='applicant.email', read_only=True)
+    applicant_phone = serializers.CharField(source='applicant.phone', read_only=True, allow_blank=True, allow_null=True)
     applicant_profile = serializers.SerializerMethodField(read_only=True)
     status_history = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Application
         fields = ['id', 'job', 'job_title', 'job_company', 'job_location', 'job_type',
-                  'job_details', 'applicant', 'applicant_name', 'applicant_email', 
+                  'job_details', 'applicant', 'applicant_name', 'applicant_email', 'applicant_phone',
                   'applicant_profile', 'status', 'interview_status', 'status_history', 'cover_letter', 
                   'resume', 'created_at', 'updated_at', 'interview_date', 'notes']
         read_only_fields = ['applicant', 'job', 'created_at', 'updated_at', 
                            'job_title', 'job_company', 'job_location', 'job_type', 
-                           'job_details', 'applicant_name', 'applicant_email', 
+                           'job_details', 'applicant_name', 'applicant_email', 'applicant_phone',
                            'applicant_profile', 'status_history']
     
     def __init__(self, *args, **kwargs):
@@ -110,6 +119,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             # No specific read_only changes needed here for them beyond what's in Meta
 
     def get_applicant_name(self, obj):
+        if hasattr(obj.applicant, 'name') and obj.applicant.name:
+            return obj.applicant.name
         return f"{obj.applicant.first_name} {obj.applicant.last_name}"
     
     def get_applicant_profile(self, obj):
@@ -132,7 +143,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             'company': job.company,
             'location': job.location,
             'type': job.type,
-            'salary': job.salary,
+            'salary_min': job.salary_min,
+            'salary_max': job.salary_max,
             'description': job.description,
             'requirements': job.requirements,
         }

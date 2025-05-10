@@ -63,9 +63,10 @@ class ExperienceAdmin(admin.ModelAdmin):
     list_filter = ('company', 'current', 'start_date', 'end_date')
     list_select_related = ('student__user',)
 
+@admin.register(EmployerProfile)
 class EmployerProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'company_name', 'industry', 'get_email')
-    search_fields = ('user__email', 'company_name', 'industry')
+    list_display = ('user', 'get_company_name', 'industry', 'get_email')
+    search_fields = ('user__email', 'company__name', 'industry')
     list_filter = ('industry',)
     list_select_related = ('user', 'company')
 
@@ -74,6 +75,12 @@ class EmployerProfileAdmin(admin.ModelAdmin):
     get_email.short_description = 'Email'
     get_email.admin_order_field = 'user__email'
 
+    def get_company_name(self, obj):
+        if obj.company:
+            return obj.company.name
+        return "N/A"
+    get_company_name.short_description = 'Company Name' 
+    get_company_name.admin_order_field = 'company__name'
 
 class CampusProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'university', 'department', 'position', 'get_email')
@@ -91,5 +98,4 @@ admin.site.register(StudentProfile, StudentProfileAdmin)
 admin.site.register(Resume, ResumeAdmin)
 admin.site.register(Education, EducationAdmin)
 admin.site.register(Experience, ExperienceAdmin)
-admin.site.register(EmployerProfile, EmployerProfileAdmin)
 admin.site.register(CampusProfile, CampusProfileAdmin)

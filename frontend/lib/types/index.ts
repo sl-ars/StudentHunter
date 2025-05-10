@@ -102,6 +102,7 @@ export interface Job {
   views?: number
   applications?: number
   status?: string
+  isSaved?: boolean
 }
 
 export interface JobApplication {

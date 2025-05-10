@@ -24,12 +24,21 @@ class Job(models.Model):
         ('personal', 'My Jobs'),
     ]
 
+    JOB_TYPE_CHOICES = [
+    ('full-time', 'Full-Time'),
+    ('part-time', 'Part-Time'),
+    ('contract', 'Contract'),
+    ('internship', 'Internship'),
+    ('temporary', 'Temporary'),
+]
+
     title = models.CharField(max_length=255)
     company = models.CharField(max_length=255)
     company_id = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
-    type = models.CharField(max_length=50)
-    salary = models.CharField(max_length=50)
+    type = models.CharField(max_length=50, choices=JOB_TYPE_CHOICES)
+    salary_min = models.PositiveIntegerField(null=True, blank=True)
+    salary_max = models.PositiveIntegerField(null=True, blank=True)
     description = models.TextField(null=True, blank=True)
     requirements = models.JSONField(null=True, blank=True)
     responsibilities = models.JSONField(null=True, blank=True)

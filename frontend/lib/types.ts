@@ -13,6 +13,8 @@ export interface User {
   avatar?: string;
   company?: string;
   company_id?: string;
+  location?: string;
+  university?: string;
 }
 
 // Типы для вакансий
@@ -42,6 +44,7 @@ export interface Job {
   created_by_name?: string;
   application_stats?: Record<string, number>;
   is_applied?: boolean;
+  is_saved?: boolean;
 }
 
 // Типы для заявок на вакансии
@@ -56,6 +59,7 @@ export interface Application {
   applicant: User | string;
   applicant_name?: string;
   applicant_email?: string;
+  applicant_phone?: string;
   applicant_profile?: {
     education?: string;
     skills?: string[];
@@ -232,4 +236,57 @@ export interface UserProfile extends User {
   experience?: Experience[]; // Есть в StudentProfile
   achievements?: Achievement[]; // ВАЖНО: здесь Achievement[], а в StudentProfile мы сделали string[] для простоты ввода
                                // Это потребует согласования с бэкендом или конвертации на фронте если мы используем StudentProfile.achievements: string[]
+}
+
+// Types for Public Profile Page
+export interface PublicProfileEducation {
+  university: string;
+  degree: string;
+  field: string;
+  start_date: string; // Consider using Date type after fetching
+  end_date: string;   // Consider using Date type after fetching
+  gpa: number | null;
+}
+
+export interface PublicProfileExperience { // Assuming structure, was empty in example
+  company: string;
+  position: string;
+  start_date: string;
+  end_date: string;
+  description?: string;
+}
+
+export interface StudentPublicInfo {
+  bio: string | null;
+  skills: string[];
+  achievements: string[];
+  education: PublicProfileEducation[];
+  experience: PublicProfileExperience[];
+}
+
+export interface PublicProfile {
+  id: number;
+  name: string;
+  role: UserRole;
+  avatar: string | null;
+  location: string | null;
+  university: string | null; // Or specific university details if available
+  student_info: StudentPublicInfo | null; // Null if role is not 'student'
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+  total_pages?: number;
+  current_page?: number;
+}
+
+export interface ApiResponse<T = any> {
+  status: "success" | "error" | "fail"; // 'fail' often for validation errors
+  message: string;
+  data?: T;
+  error?: any; // For detailed error messages or codes
+  errors?: Record<string, string[]>; // For form validation errors
 } 

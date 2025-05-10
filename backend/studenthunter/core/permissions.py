@@ -117,7 +117,25 @@ class IsOwnerOrEmployer(BasePermission):
     - students to access only their own applications,
     - employers to access applications for jobs they created,
     - admins (staff) to access everything.
+    - Only students to create new applications.
     """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            # This check is technically redundant if IsAuthenticated is always used first,
+            # but good for a standalone permission.
+            return False
+
+        if view.action == 'create':
+            # Only users with the 'student' role can create applications.
+            return hasattr(request.user, 'role') and request.user.role == 'student'
+        
+        # For other actions (list, retrieve, update, delete, custom actions),
+        # allow access if user is authenticated. 
+        # Further specific access control will be handled by:
+        # - get_queryset (for list views)
+        # - has_object_permission (for detail views and object-specific actions)
+        return True
 
     def has_object_permission(self, request, view, obj):
         user = request.user
@@ -129,6 +147,10 @@ class IsOwnerOrEmployer(BasePermission):
             return obj.applicant == user
 
         if user.role == 'employer':
-            return obj.job.created_by == user
+            # Align with get_queryset: check if the application's job belongs to the employer's company.
+            if hasattr(obj, 'job') and obj.job and hasattr(obj.job, 'company_id') and \
+               hasattr(user, 'company_id') and user.company_id is not None:
+                return obj.job.company_id == user.company_id
+            return False
 
         return False

@@ -575,8 +575,8 @@ const EmployerSections = ({
                   <Input
                     id="employer-company-name"
                     type="text"
-                    value={(profileData as EmployerProfile).company_name || ""} 
-                    onChange={(e) => onInputChange('company_name' as keyof AnyFullProfile, e.target.value)}
+                    value={(profileData as EmployerProfile).company_name_display || (profileData as EmployerProfile).company || ""} 
+                    onChange={(e) => onInputChange('company_name_display' as keyof AnyFullProfile, e.target.value)}
                     placeholder="Your Company LLC"
                   />
                 </div>

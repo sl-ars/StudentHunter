@@ -38,6 +38,7 @@ from .models import UserSettings, CompanySettings
 from .serializers import UserSettingsSerializer, CompanySettingsSerializer
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.exceptions import ValidationError
+from jobs.serializers import JobSerializer
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -197,7 +198,7 @@ class RegisterViewSet(viewsets.ViewSet):
         summary="Retrieve a public user profile",
         description="Get public profile information for a user by their ID. Does not require authentication. Admin profiles and profiles of roles not explicitly listed (student, employer, campus) are not publicly accessible.",
         parameters=[
-            OpenApiParameter("pk", OpenApiTypes.INT, OpenApiParameter.PATH,
+            OpenApiParameter("id", OpenApiTypes.INT, OpenApiParameter.PATH,
                              description="A unique integer identifying the user.")
         ],
         responses={
@@ -212,7 +213,7 @@ class RegisterViewSet(viewsets.ViewSet):
 class ProfileViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
-    lookup_field = 'pk'
+    lookup_field = 'id'
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     # Component name for Polymorphic Serializer used in 'me' action
@@ -337,9 +338,9 @@ class ProfileViewSet(viewsets.GenericViewSet):
                 return ok(data=fresh_serializer.data, message=f"{user.role.capitalize()} profile updated successfully")
             return fail(message="Validation error", details=serializer.errors, code=status.HTTP_400_BAD_REQUEST)
 
-    def retrieve(self, request, pk=None):
+    def retrieve(self, request, id=None):
         try:
-            user = User.objects.get(pk=pk)
+            user = User.objects.get(id=id)
         except User.DoesNotExist:
             return fail(message="User not found", code=status.HTTP_404_NOT_FOUND)
 
@@ -352,6 +353,31 @@ class ProfileViewSet(viewsets.GenericViewSet):
         # For public profile view, we use PublicProfileSerializer as defined in @extend_schema_view
         serializer = PublicProfileSerializer(user, context={'request': request})
         return ok(data=serializer.data, message="Public profile retrieved successfully")
+
+    @extend_schema(
+        summary="Get current user's saved jobs",
+        description="Retrieve a list of jobs saved by the currently authenticated student.",
+        tags=['users', 'jobs'],
+        responses={
+            200: JobSerializer(many=True),
+            401: {"description": "Authentication credentials were not provided."},
+            403: {"description": "User is not a student or profile does not exist."}
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='saved-jobs', permission_classes=[IsAuthenticated])
+    def saved_jobs(self, request):
+        user = request.user
+        if user.role != 'student':
+            return fail(message="Only students can have saved jobs.", code=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            student_profile = user.student_profile
+        except StudentProfile.DoesNotExist:
+            return fail(message="Student profile not found.", code=status.HTTP_404_NOT_FOUND)
+        
+        saved_jobs_queryset = student_profile.saved_jobs.all()
+        serializer = JobSerializer(saved_jobs_queryset, many=True, context={'request': request})
+        return ok(data=serializer.data, message="Saved jobs retrieved successfully")
 
 
 @extend_schema(tags=['resumes'])

@@ -10,13 +10,14 @@ class JobSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField(read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_applied = serializers.SerializerMethodField(read_only=True)
+    is_saved = serializers.SerializerMethodField(read_only=True)
     logo = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = Job
         fields = '__all__'
         read_only_fields = ['created_by', 'view_count', 'application_count', 'company_name', 
-                           'created_by_name', 'application_stats', 'is_applied']
+                           'created_by_name', 'application_stats', 'is_applied', 'is_saved']
     
     def get_application_stats(self, obj):
         """Получить статистику по заявкам на вакансию."""
@@ -46,6 +47,14 @@ class JobSerializer(serializers.ModelSerializer):
             user = self.context['request'].user
             if user.is_authenticated and user.role == 'student':
                 return Application.objects.filter(job=obj, applicant=user).exists()
+        return False
+    
+    def get_is_saved(self, obj):
+        """Check if the job is saved by the current student user."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user.role == 'student':
+            if hasattr(request.user, 'student_profile') and request.user.student_profile:
+                return request.user.student_profile.saved_jobs.filter(pk=obj.pk).exists()
         return False
     
     def validate(self, data):
@@ -80,14 +89,23 @@ class JobSerializer(serializers.ModelSerializer):
 class JobListSerializer(serializers.ModelSerializer):
     """Облегченный сериализатор для списка вакансий."""
     company_name = serializers.SerializerMethodField(read_only=True)
+    is_saved = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Job
-        fields = ['id', 'title', 'company', 'company_name', 'location', 'type', 'salary', 
+        fields = ['id', 'title', 'company', 'company_name', 'location', 'type', 'industry', 'salary_min', 'salary_max',
                  'posted_date', 'deadline', 'is_active', 'featured', 'view_count', 
-                 'application_count']
+                 'application_count', 'is_saved']
     
     def get_company_name(self, obj):
         # Just return the company field directly
         # to avoid trying to convert company_id to a numeric ID
         return obj.company
+
+    def get_is_saved(self, obj):
+        """Check if the job is saved by the current student user."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and request.user.role == 'student':
+            if hasattr(request.user, 'student_profile') and request.user.student_profile:
+                return request.user.student_profile.saved_jobs.filter(pk=obj.pk).exists()
+        return False

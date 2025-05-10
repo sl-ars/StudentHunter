@@ -13,22 +13,7 @@ export default function NewJobPage() {
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const { refreshUserInfo } = useAuth()
 
-  // Refresh user information when page loads to get latest company data
-  useEffect(() => {
-    const refreshData = async () => {
-      try {
-        console.log("Refreshing user data to get latest company information...")
-        await refreshUserInfo()
-        console.log("User data refreshed for job creation")
-      } catch (error) {
-        console.error("Error refreshing user data:", error)
-      }
-    }
-    
-    refreshData()
-  }, [refreshUserInfo])
 
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)

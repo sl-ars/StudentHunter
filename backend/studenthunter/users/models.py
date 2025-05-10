@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 from core.storage import PublicAssetStorage
+# from jobs.models import Job  # Remove this import
 from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
@@ -48,6 +49,7 @@ class StudentProfile(models.Model):
     skills = models.JSONField(blank=True, null=True, default=list)
     achievements = models.JSONField(blank=True, null=True, default=list)
     resume = models.FileField(upload_to="resumes/", null=True, blank=True)
+    saved_jobs = models.ManyToManyField('jobs.Job', blank=True, related_name="saved_by_students")
 
     def __str__(self):
         return f"Student Profile: {self.user.email}"
@@ -106,14 +108,14 @@ class Experience(models.Model):
 
 class EmployerProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="employer_profile")
-    company_name = models.CharField(max_length=255)
     industry = models.CharField(max_length=100)
     website = models.URLField(blank=True, null=True)
     description = models.TextField(blank=True)
     company = models.ForeignKey('companies.Company', on_delete=models.SET_NULL, null=True, blank=True, related_name="employer_profiles")
 
     def __str__(self):
-        return f"Employer: {self.company_name}"
+        company_name_str = self.company.name if self.company else "No Company Assigned"
+        return f"Employer Profile for: {self.user.email} ({company_name_str})"
 
 
 class CampusProfile(models.Model):

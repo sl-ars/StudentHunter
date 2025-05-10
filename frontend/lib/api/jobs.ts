@@ -4,6 +4,7 @@ import type { Job } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
 import { mockJobs } from "@/lib/mock-data/jobs"
 import axios from 'axios'
+import { toast } from "sonner";
 
 // Combine all interfaces from both files
 export interface JobFilters {
@@ -11,12 +12,13 @@ export interface JobFilters {
   location?: string
   type?: string
   industry?: string
-  experience?: string
-  salary_min?: number
-  salary_max?: number
+  is_active?: boolean
+  scope?: string
   page?: number
   page_size?: number
   sortBy?: string
+  salary_min?: number
+  salary_max?: number
 }
 
 export interface JobsResponse {
@@ -26,10 +28,34 @@ export interface JobsResponse {
   totalPages: number
 }
 
-export interface JobApplicationData {
-  resumeId?: string
-  newResume?: File
-  answers: Record<string, string | string[]>
+// Old JobApplicationData (to be replaced or commented out)
+// export interface JobApplicationData {
+//   resumeId?: string
+//   newResume?: File
+//   answers: Record<string, string | string[]>
+// }
+
+// New payload structure for client-side application data
+export interface JobApplicationClientPayload {
+  cover_letter: string;
+  resume_id: string; // ID of an existing resume, will be sent as 'resume' to backend
+  notes?: string;     // Optional notes from the student
+}
+
+// Define the structure of the data payload within the backend response for jobs
+interface BackendJobsDataPayload {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Job[]; // Assuming Job type from @/lib/types is compatible
+}
+
+// Define the overall structure of the response from the backend API
+interface FullBackendApiResponse {
+  status: "success" | "error";
+  message: string;
+  data: BackendJobsDataPayload;
+  error?: any;
 }
 
 // Get jobs with optional filters
@@ -43,75 +69,61 @@ export const getJobs = async (
     if (filters.keyword) params.append("keyword", filters.keyword)
     if (filters.location) params.append("location", filters.location)
     if (filters.type) params.append("type", filters.type)
+    if (filters.industry) params.append("industry", filters.industry)
+    if (filters.is_active !== undefined) params.append("is_active", String(filters.is_active))
+    if (filters.scope) params.append("scope", filters.scope)
     if (filters.page) params.append("page", filters.page.toString())
-    if (filters.sortBy) params.append("sortBy", filters.sortBy)
+    if (filters.page_size) params.append("page_size", filters.page_size.toString())
+    if (filters.sortBy) params.append("sort", filters.sortBy)
+    if (filters.salary_min !== undefined) params.append("salary_min", filters.salary_min.toString())
+    if (filters.salary_max !== undefined) params.append("salary_max", filters.salary_max.toString())
 
-    // Add authentication status for API to know what data to return
+    // Add authentication status for API
     params.append("authenticated", isAuthenticated ? "true" : "false")
 
-    const response = await apiClient.get<ApiResponse<JobsResponse>>(`/job/?${params.toString()}`)
-    return response.data
-  } catch (error: any) {
-    console.error("Error fetching jobs:", error)
+    // Assuming apiClient.get returns an Axios-like response where the actual data is in a 'data' property
+    const axiosResponse = await apiClient.get<FullBackendApiResponse>(`/job/?${params.toString()}`)
+    const backendResponse = axiosResponse.data; // This is our FullBackendApiResponse
 
-    // Fallback to mock data if API call fails or if mock is enabled
-    if (isMockEnabled()) {
-      const { mockJobs } = await import("@/lib/mock-data/jobs")
-      // Create a paginated response from mock data
-      const page = filters.page || 1
-      const pageSize = 10
-      const filteredJobs = mockJobs
-        .filter((job) => {
-          if (
-            filters.keyword &&
-            !job.title.toLowerCase().includes(filters.keyword.toLowerCase()) &&
-            !job.company.toLowerCase().includes(filters.keyword.toLowerCase())
-          ) {
-            return false
-          }
-          if (filters.location && !job.location.toLowerCase().includes(filters.location.toLowerCase())) {
-            return false
-          }
-          if (filters.type && filters.type !== "all" && job.type !== filters.type) {
-            return false
-          }
-          return true
-        })
-        .sort((a, b) => {
-          if (filters.sortBy === "date") {
-            return new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime()
-          }
-          if (filters.sortBy === "salary") {
-            // Simple salary comparison (in a real app, would parse salary ranges)
-            return b.salary.localeCompare(a.salary)
-          }
-          // Default: relevance (no specific sorting)
-          return 0
-        })
+    if (backendResponse.status === "success") {
+      const backendData = backendResponse.data; // This is BackendJobsDataPayload
+      const pageSize = filters.page_size || 10;
 
-      const startIndex = (page - 1) * pageSize
-      const endIndex = startIndex + pageSize
-      const paginatedJobs = filteredJobs.slice(startIndex, endIndex)
+      const jobsResponseData: JobsResponse = {
+        jobs: backendData.results,
+        totalCount: backendData.count,
+        currentPage: filters.page || 1,
+        totalPages: Math.ceil(backendData.count / pageSize),
+      };
 
       return {
         status: "success",
-        message: "Jobs retrieved successfully",
+        message: backendResponse.message,
+        data: jobsResponseData,
+      };
+    } else {
+      return {
+        status: "error",
+        message: backendResponse.message || "Failed to retrieve jobs from backend",
         data: {
-          jobs: paginatedJobs,
-          totalCount: filteredJobs.length,
-          currentPage: page,
-          totalPages: Math.ceil(filteredJobs.length / pageSize),
+          jobs: [],
+          totalCount: 0,
+          currentPage: filters.page || 1,
+          totalPages: 0,
         },
-      }
+      };
     }
-
+  } catch (error: any) {
+    console.error("Error fetching jobs:", error)
+    // Attempt to extract a message if it's an Axios error with a response
+    const errorMessage = error.response?.data?.message || error.message || "Failed to retrieve jobs due to a client-side or network error";
     return {
       status: "error",
-      message: error.message || "Failed to retrieve jobs",
+      message: errorMessage,
       data: {
         jobs: [],
         totalCount: 0,
-        currentPage: 1,
+        currentPage: filters.page || 1,
         totalPages: 0,
       },
     }
@@ -125,13 +137,6 @@ export const getJobById = async (id: string): Promise<Job | null> => {
     const response = await apiClient.get(`/job/${id}/`)
     console.log("API response:", response)
     
-    if (isMockEnabled()) {
-      console.log("Mock mode enabled, checking mock data")
-      const mockJob = mockJobs.find((job: Job) => job.id === id)
-      console.log("Found mock job:", mockJob)
-      return mockJob || null
-    }
-    
     // Check if response has the expected structure
     if (response.data && response.data.data) {
       return response.data.data
@@ -140,12 +145,6 @@ export const getJobById = async (id: string): Promise<Job | null> => {
     return response.data
   } catch (error) {
     console.error("Error in getJobById:", error)
-    if (isMockEnabled()) {
-      console.log("Falling back to mock data")
-      const mockJob = mockJobs.find((job: Job) => job.id === id)
-      console.log("Found mock job:", mockJob)
-      return mockJob || null
-    }
     return null
   }
 }
@@ -158,90 +157,16 @@ export const getSimilarJobs = async (jobId: string): Promise<Job[]> => {
   } catch (error: any) {
     console.error(`Error fetching similar jobs for job ID ${jobId}:`, error)
 
-    // Fallback to mock data if API call fails or if mock is enabled
-    if (isMockEnabled()) {
-      const { mockJobs } = await import("@/lib/mock-data/jobs")
-      const currentJob = mockJobs.find((job) => job.id === jobId)
-      if (!currentJob) return []
-
-      // Find jobs with similar title or company
-      const similarJobs = mockJobs
-        .filter(
-          (job) =>
-            job.id !== jobId &&
-            (job.title.includes(currentJob.title.split(" ")[0]) || job.company === currentJob.company),
-        )
-        .slice(0, 3)
-
-      return similarJobs
-    }
-
     return []
   }
 }
 
-// Save a job
-export const saveJob = async (jobId: string): Promise<ApiResponse<void>> => {
-  try {
- const response = await apiClient.get<ApiResponse<Job[]>>(`/job/${jobId}/similar/`)
-    return {
-      status: "success",
-      message: "Job saved successfully",
-      data: undefined,
-    }
-  } catch (error: any) {
-    console.error(`Error saving job with ID ${jobId}:`, error)
 
-    // If mock is enabled, just return success
-    if (isMockEnabled()) {
-      return {
-        status: "success",
-        message: "Job saved successfully (mocked)",
-        data: undefined,
-      }
-    }
-
-    return {
-      status: "error",
-      message: error.message || "Failed to save job",
-      data: undefined,
-    }
-  }
-}
-
-// Unsave a job
-export const unsaveJob = async (jobId: string): Promise<ApiResponse<void>> => {
-  try {
-    await apiClient.delete<ApiResponse<void>>(`/job/${jobId}/save/`)
-    return {
-      status: "success",
-      message: "Job unsaved successfully",
-      data: undefined,
-    }
-  } catch (error: any) {
-    console.error(`Error unsaving job with ID ${jobId}:`, error)
-
-    // If mock is enabled, just return success
-    if (isMockEnabled()) {
-      return {
-        status: "success",
-        message: "Job unsaved successfully (mocked)",
-        data: undefined,
-      }
-    }
-
-    return {
-      status: "error",
-      message: error.message || "Failed to unsave job",
-      data: undefined,
-    }
-  }
-}
 
 // Add this method if it doesn't exist or fix it if it does
 export const getAll = async (filters: any) => {
   try {
-    const response = await apiClient.get("/job", { params: filters })
+    const response = await apiClient.get("/job/", { params: filters })
     return response
   } catch (error) {
     console.error("Error fetching jobs:", error)
@@ -258,17 +183,6 @@ export const jobApi = {
       const response = await apiClient.get<ApiResponse<Job>>(`/job/${id}/`)
       return response.data
     } catch (error: any) {
-      // Fallback to mock data if API call fails or if mock is enabled
-      if (isMockEnabled()) {
-        const { mockJobs } = await import("@/lib/mock-data/jobs")
-        const job = mockJobs.find((job) => job.id === id)
-        return {
-          status: "success",
-          message: job ? "Job found" : "Job not found",
-          data: job as Job,
-        }
-      }
-
       return {
         status: "error",
         message: error.message || "Failed to retrieve job",
@@ -292,16 +206,49 @@ export const jobApi = {
     }
   },
 
-  applyForJob: async (jobId: string, userId: string, applicationData: any): Promise<ApiResponse<any>> => {
+  applyToJob: async (
+    jobId: string, 
+    data: JobApplicationClientPayload, 
+  ): Promise<ApiResponse<{ success: boolean; application_id: string }>> => {
     try {
-      const response = await apiClient.post<ApiResponse<any>>(`/job/${jobId}/apply/`, { userId, ...applicationData })
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to apply for job",
-        data: null,
+      const payload: { job: string; cover_letter: string; resume: string; notes?: string } = {
+        job: jobId, 
+        cover_letter: data.cover_letter,
+        resume: data.resume_id, 
+      };
+      if (data.notes && data.notes.trim() !== "") { 
+        payload.notes = data.notes;
       }
+      const response = await apiClient.post<ApiResponse<{ success: boolean; application_id: string }>>(
+        `/application/`, 
+        payload, 
+      );
+      if (response.data.status === "success") {
+        toast.success(response.data.message || "Application submitted successfully!");
+      } else {
+        toast.error(response.data.message || "Application submission failed.");
+      }
+      return response.data;
+    } catch (error: any) {
+      let errorMessage = "Failed to apply to job. Please try again.";
+      if (axios.isAxiosError(error) && error.response) {
+        const responseData = error.response.data;
+        const statusCode = error.response.status;
+        if (statusCode === 403) {
+          errorMessage = responseData?.message || responseData?.error?.details?.detail || "You do not have permission to perform this action.";
+        } else if (statusCode === 400) {
+          if (responseData?.error?.details) {
+            const details = responseData.error.details;
+            if (details.non_field_errors && details.non_field_errors.length > 0) {
+              errorMessage = details.non_field_errors.join(" ");
+            } else if (details.resume && details.resume.length > 0) {
+              errorMessage = `Resume error: ${details.resume.join(" ")}`;
+            } else { errorMessage = responseData.message || "Validation failed. Please check your input."; }
+          } else { errorMessage = responseData.message || "Validation error."; }
+        } else { errorMessage = responseData.message || "An API error occurred."; }
+      } else { errorMessage = error.message || "A network error occurred."; }
+      toast.error(errorMessage);
+      return { status: "error", message: errorMessage, data: { success: false, application_id: "" } };
     }
   },
 
@@ -374,52 +321,6 @@ export const jobApi = {
   },
 
   // Job applications
-  applyToJob: async (
-    id: string,
-    data: JobApplicationData,
-  ): Promise<ApiResponse<{ success: boolean; application_id: string }>> => {
-    // If there's a new resume, we need to use FormData
-    try {
-      if (data.newResume) {
-        const formData = new FormData()
-        formData.append("resume", data.newResume)
-
-        if (data.answers) {
-          formData.append("answers", JSON.stringify(data.answers))
-        }
-
-        const response = await apiClient.post<ApiResponse<{ success: boolean; application_id: string }>>(
-          `/job/${id}/apply/`,
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          },
-        )
-
-        return response.data
-      }
-
-      // Otherwise, use JSON
-      const response = await apiClient.post<ApiResponse<{ success: boolean; application_id: string }>>(
-        `/job/${id}/apply/`,
-        {
-          resume_id: data.resumeId,
-          answers: data.answers,
-        },
-      )
-
-      return response.data
-    } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to apply to job",
-        data: { success: false, application_id: "" },
-      }
-    }
-  },
-
   getApplications: async (jobId: string): Promise<ApiResponse<any[]>> => {
     try {
       const response = await apiClient.get<ApiResponse<any[]>>(`/job/${jobId}/applications/`)
@@ -498,17 +399,60 @@ export const jobApi = {
     }
   },
 
-  // Get saved jobs for the current user
-  getSavedJobs: async (): Promise<ApiResponse<{ jobs: string[] }>> => {
+
+  // Save a job
+  saveJob: async (jobId: string): Promise<ApiResponse<void>> => {
     try {
-      const response = await apiClient.get<ApiResponse<{ jobs: string[] }>>("/users/saved-jobs/")
-      return response.data
+      await apiClient.post(`/job/${jobId}/save/`);
+      toast.success("Job saved successfully!");
+      return { status: "success", message: "Job saved!", data: undefined };
     } catch (error: any) {
-      return {
-        status: "error",
-        message: error.message || "Failed to retrieve saved jobs",
-        data: { jobs: [] },
+      const errorMessage = error.response?.data?.message || error.message || "Failed to save job";
+      toast.error(errorMessage);
+      return { status: "error", message: errorMessage, data: undefined };
+    }
+  },
+
+  unsaveJob: async (jobId: string): Promise<ApiResponse<void>> => {
+    try {
+      await apiClient.delete(`/job/${jobId}/save/`); // Correct method for unsaving is typically DELETE
+      toast.success("Job unsaved successfully!");
+      return { status: "success", message: "Job unsaved!", data: undefined };
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to unsave job";
+      toast.error(errorMessage);
+      return { status: "error", message: errorMessage, data: undefined };
+    }
+  },
+
+
+  // Get saved jobs for the current user
+  getSavedJobs: async (): Promise<ApiResponse<Job[]>> => {
+    try {
+      const response = await apiClient.get<ApiResponse<Job[]>>("/user/profile/saved-jobs/");
+      
+      if (response.data.status === "success") {
+        return { 
+            status: "success", 
+            message: response.data.message,
+            data: response.data.data || []
+        };
+      } else {
+        toast.error(response.data.message || "Failed to retrieve saved jobs");
+        return { 
+            status: "error", 
+            message: response.data.message || "Failed to retrieve saved jobs", 
+            data: []
+        };
       }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to retrieve saved jobs";
+      toast.error(errorMessage);
+      return { 
+          status: "error", 
+          message: errorMessage, 
+          data: []
+      };
     }
   },
 }

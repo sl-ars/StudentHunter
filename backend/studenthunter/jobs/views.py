@@ -9,11 +9,13 @@ from jobs.serializers import JobSerializer, JobListSerializer
 from applications.models import Application
 from applications.serializers import ApplicationSerializer
 from jobs.permissions import IsOwnerOrAdminOrReadOnly, IsApplicantOrEmployer
+from core.permissions import IsStudent
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q, F
 from django.utils import timezone
 from datetime import timedelta
 from analytics.models import JobView
+import django_filters
 
 # Кастомный фильтр сортировки
 class CustomOrderingFilter(filters.OrderingFilter):
@@ -22,8 +24,8 @@ class CustomOrderingFilter(filters.OrderingFilter):
         'recent': ['-posted_date'],
         'popular': ['-view_count', '-application_count'],
         'featured': ['-featured', '-posted_date'],
-        'salary_high': ['-salary'],
-        'salary_low': ['salary'],
+        'salary_high': ['-salary_max'],
+        'salary_low': ['salary_min'],
         'deadline': ['deadline'],
     }
     ordering_description = (
@@ -67,6 +69,20 @@ class CustomOrderingFilter(filters.OrderingFilter):
         
         return self.get_default_ordering(view)
 
+
+class JobFilterSet(django_filters.FilterSet):
+    salary_min = django_filters.NumberFilter(field_name='salary', lookup_expr='gte')
+    salary_max = django_filters.NumberFilter(field_name='salary', lookup_expr='lte')
+
+    class Meta:
+        model = Job
+        fields = {
+            'type': ['exact', 'iexact'],
+            'industry': ['exact', 'iexact'],
+            'location': ['exact', 'iexact'],
+            # salary_min and salary_max are handled by explicit definition above
+        }
+
 @extend_schema(tags=['jobs'])
 @extend_schema_view(
     list=extend_schema(
@@ -91,19 +107,51 @@ class CustomOrderingFilter(filters.OrderingFilter):
                 description="Filter by industry.",
                 required=False,
                 type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                enum=[choice[0] for choice in Job.INDUSTRY_CHOICES]
+            ),
+            OpenApiParameter(
+                name='type',
+                description="Filter by job type.",
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                enum=[choice[0] for choice in Job.JOB_TYPE_CHOICES]
+            ),
+            OpenApiParameter(
+                name='location',
+                description="Filter by location.",
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name='salary_min',
+                description="Minimum salary.",
+                required=False,
+                type=OpenApiTypes.NUMBER,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name='salary_max',
+                description="Maximum salary.",
+                required=False,
+                type=OpenApiTypes.NUMBER,
                 location=OpenApiParameter.QUERY
             )
         ]
     )
 )
+
+
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
     permission_classes = [IsOwnerOrAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, CustomOrderingFilter]
-    filterset_fields = ['type', 'industry', 'location']
+    filterset_class = JobFilterSet
     search_fields = ['title', 'description', 'company', 'requirements']
-    ordering_fields = ['posted_date', 'salary', 'view_count', 'application_count', 'title', 'featured', 'deadline']
+    ordering_fields = ['posted_date', 'salary_min', 'salary_max', 'view_count', 'application_count', 'title', 'featured', 'deadline']
     ordering = ['-posted_date']
 
     def get_serializer_class(self):
@@ -233,12 +281,37 @@ class JobViewSet(viewsets.ModelViewSet):
             'message': 'Job deleted successfully'
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
-    def toggle_active(self, request, pk=None):
+    @action(detail=True, methods=['post', 'delete'], permission_classes=[IsStudent], url_path='save')
+    def toggle_save(self, request, pk=None):
         job = self.get_object()
-        job.is_active = not job.is_active
-        job.save()
-        return Response({'status': 'success', 'is_active': job.is_active})
+        user = request.user
+
+        # Check if the user has a student profile
+        if not hasattr(user, 'student_profile'):
+            return Response(
+                {'status': 'error', 'message': 'Student profile not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        student_profile = user.student_profile
+
+        # It's good practice to ensure saved_jobs attribute exists, though it should by model definition
+        if not hasattr(student_profile, 'saved_jobs'):
+            return Response(
+                {'status': 'error', 'message': 'User profile does not support saving jobs properly.'}, # Or a more specific error
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        if request.method == 'POST':
+            student_profile.saved_jobs.add(job)
+            return Response({'status': 'success', 'message': 'Job saved successfully'}, status=status.HTTP_200_OK)
+        elif request.method == 'DELETE':
+            if student_profile.saved_jobs.filter(pk=job.pk).exists():
+                student_profile.saved_jobs.remove(job)
+                return Response({'status': 'success', 'message': 'Job unsaved successfully'}, status=status.HTTP_200_OK)
+            else:
+                # It's okay if the job wasn't saved, still a success from client's perspective of wanting it unsaved
+                return Response({'status': 'success', 'message': 'Job was not in saved list.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def applications(self, request, pk=None):

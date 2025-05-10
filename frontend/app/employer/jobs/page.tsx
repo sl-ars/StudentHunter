@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { employerApi } from "@/lib/api"
 import { Job } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { DataTable } from "@/components/ui/data-table"
 import { MoreVertical, Edit, Trash2, Eye, Plus } from "lucide-react"
 import {
@@ -23,19 +23,14 @@ export default function JobsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [jobToDelete, setJobToDelete] = useState<string | null>(null)
   const router = useRouter()
-  const { toast } = useToast()
 
   const fetchJobs = async () => {
     try {
       const response = await employerApi.getJobs()
-      setJobs(response.data || [])
+      setJobs(response || [])
     } catch (error) {
       console.error("Error fetching jobs:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch jobs",
-        variant: "destructive",
-      })
+      toast.error("Failed to fetch jobs")
     } finally {
       setIsLoading(false)
     }
@@ -63,18 +58,11 @@ export default function JobsPage() {
 
     try {
       await employerApi.deleteJob(jobToDelete)
-      toast({
-        title: "Success",
-        description: "Job posting deleted successfully",
-      })
+      toast.success("Job posting deleted successfully")
       fetchJobs()
     } catch (error) {
       console.error("Error deleting job:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete job posting",
-        variant: "destructive",
-      })
+      toast.error("Failed to delete job posting")
     } finally {
       setDeleteDialogOpen(false)
       setJobToDelete(null)
@@ -95,8 +83,19 @@ export default function JobsPage() {
       header: "Location",
     },
     {
-      accessorKey: "salary",
+      id: "salary",
       header: "Salary",
+      cell: ({ row }: any) => {
+        const { salary_min, salary_max } = row.original
+        if (salary_min && salary_max) {
+          return `$${salary_min} - $${salary_max}`
+        } else if (salary_min) {
+          return `$${salary_min}`
+        } else if (salary_max) {
+          return `$${salary_max}`
+        }
+        return "N/A"
+      },
     },
     {
       accessorKey: "is_active",

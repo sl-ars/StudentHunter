@@ -28,7 +28,7 @@ export default function JobDetailPage() {
   const jobId = params?.id as string
   const { user } = useAuth()
   const isEmployer = user?.role === "employer"
-  const isJobOwner = job?.company_id === user?.company_id || job?.companyId === user?.company_id
+  const isJobOwner = job?.company_id === user?.company_id || job?.company_id === user?.company_id
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -39,7 +39,7 @@ export default function JobDetailPage() {
         console.log("Fetched job:", job)
         console.log("Current user:", user)
         console.log("Is employer:", isEmployer)
-        console.log("Is job owner:", job?.company_id === user?.company_id || job?.companyId === user?.company_id)
+        console.log("Is job owner:", job?.company_id === user?.company_id || job?.company_id === user?.company_id)
         
         if (job) {
           console.log("Setting job state with:", job)
@@ -161,7 +161,7 @@ export default function JobDetailPage() {
   // Safely format the posted time with fallback
   const getPostedTimeAgo = () => {
     try {
-      const dateString = job.postedDate
+      const dateString = job.posted_date
       if (!dateString) return "Recently posted"
       
       // Check if the date is valid before formatting
@@ -250,35 +250,61 @@ export default function JobDetailPage() {
                 <p>{job.description}</p>
               </div>
 
-              {job.requirements && job.requirements.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Requirements</h3>
-                  <ul className="list-disc pl-6 space-y-1">
-                    {job.requirements.map((req, index) => (
-                      <li key={index}>{req}</li>
-                    ))}
-                  </ul>
-                </div>
+              {/* Responsibilities Section */}
+              {job.responsibilities && job.responsibilities.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Responsibilities</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <ul className="list-disc list-inside space-y-1">
+                      {job.responsibilities.map((responsibility, index) => (
+                        <li key={index}>{responsibility}</li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
               )}
 
-              {job.benefits && job.benefits.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Benefits</h3>
-                  <ul className="list-disc pl-6 space-y-1">
-                    {job.benefits.map((benefit, index) => (
-                      <li key={index}>{benefit}</li>
+              {job.requirements && job.requirements.length > 0 && (
+
+                <Card>
+                <CardHeader>
+                  <CardTitle>Requirements</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <ul className="list-disc list-inside space-y-1">
+                    {job.requirements.map((requirements, index) => (
+                      <li key={index}>{requirements}</li>
                     ))}
                   </ul>
-                </div>
+                </CardContent>
+                </Card>
+                )}
+
+              {job.benefits && job.benefits.length > 0 && (
+
+              <Card>
+              <CardHeader>
+                <CardTitle>Benefits</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <ul className="list-disc list-inside space-y-1">
+                  {job.benefits.map((benefits, index) => (
+                    <li key={index}>{benefits}</li>
+                  ))}
+                </ul>
+              </CardContent>
+              </Card>
               )}
             </CardContent>
           </Card>
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        {/* <div className="space-y-6">
           <ResumeJobMatch jobId={job.id} resumeId="current" />
-        </div>
+        </div> */}
       </div>
 
       <ConfirmDialog

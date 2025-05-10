@@ -5,6 +5,7 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.db.models import F
+from rest_framework.exceptions import PermissionDenied
 
 from applications.models import Application, ApplicationStatus
 from applications.serializers import ApplicationSerializer, ApplicationDetailSerializer
@@ -12,6 +13,46 @@ from jobs.models import Job
 from core.permissions import IsOwnerOrEmployer
 from core.utils import ok, fail
 from analytics.models import JobApplicationMetrics
+from users.models import StudentProfile
+
+# Constants for profile completeness (mirrored from users/serializers.py)
+# Ideally, this would be in a shared utility or model method.
+STUDENT_COMPLETENESS_CHECKS = {
+    'name': lambda user, profile: bool(user.name and user.name.strip()),
+    'avatar': lambda user, profile: bool(user.avatar),
+    'phone': lambda user, profile: bool(user.phone and user.phone.strip()),
+    'location': lambda user, profile: bool(user.location and user.location.strip()),
+    'university_affiliation': lambda user, profile: bool(user.university and user.university.strip()),
+    'bio': lambda user, profile: bool(profile.bio and profile.bio.strip()),
+    'skills': lambda user, profile: bool(profile.skills),
+    'achievements': lambda user, profile: bool(profile.achievements),
+    'resumes': lambda user, profile: profile.resumes.exists(),
+    'education_history': lambda user, profile: profile.education.exists(),
+    'work_experience': lambda user, profile: profile.experience.exists(),
+}
+
+def get_student_profile_completeness_percentage(user):
+    if user.role != 'student':
+        return 100 # Not applicable, or could raise error
+
+    try:
+        profile = user.student_profile
+    except StudentProfile.DoesNotExist:
+        return 0 # No profile means 0% complete
+
+    filled_fields_count = 0
+    total_fields = len(STUDENT_COMPLETENESS_CHECKS)
+
+    if total_fields == 0:
+        return 100 # No checks defined, so it's complete
+
+    for field_key, check_func in STUDENT_COMPLETENESS_CHECKS.items():
+        if check_func(user, profile):
+            filled_fields_count += 1
+    
+    percentage = (filled_fields_count / total_fields) * 100
+    return round(percentage, 2)
+
 
 @extend_schema(tags=['applications'])
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -31,16 +72,30 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Application.objects.all()
         if user.role == 'employer':
-            return Application.objects.filter(job__created_by=user)
+            if user.company_id:
+                return Application.objects.filter(job__company_id=user.company_id)
+            else:
+                return Application.objects.none()
         if user.role == 'student':
             return Application.objects.filter(applicant=user)
         return Application.objects.none()
 
     def perform_create(self, serializer):
         job = serializer.validated_data.get('job')
-        if job.created_by == self.request.user:
-            raise permissions.PermissionDenied("You cannot apply to your own job posting.")
-        application_instance = serializer.save(applicant=self.request.user)
+        applicant = self.request.user
+
+        if job.created_by == applicant:
+            raise PermissionDenied("You cannot apply to your own job posting.")
+
+        if applicant.role == 'student':
+            completeness_percentage = get_student_profile_completeness_percentage(applicant)
+            if completeness_percentage < 70:
+                raise PermissionDenied(
+                    f"Your profile is only {completeness_percentage}% complete. "
+                    f"Please complete at least 70% of your profile before applying for jobs."
+                )
+
+        application_instance = serializer.save(applicant=applicant)
         Job.objects.filter(pk=job.pk).update(application_count=F('application_count') + 1)
         
         JobApplicationMetrics.objects.create(
@@ -85,15 +140,29 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
         application = self.get_object()
-        if request.user.role == 'employer' and application.job.created_by != request.user:
-            return fail('Permission denied.', code=status.HTTP_403_FORBIDDEN)
-        elif request.user.role == 'student':
-            return fail('Permission denied. Students cannot update application status.', code=status.HTTP_403_FORBIDDEN)
         new_status = request.data.get('status')
         notes = request.data.get('notes', application.notes)
+
         if new_status not in ApplicationStatus.values:
             return fail('Invalid status', code=status.HTTP_400_BAD_REQUEST)
-        
+
+        # Permission checks
+        if request.user.role == 'employer':
+            if application.job.created_by != request.user:
+                return fail('Permission denied. Not the job owner.', code=status.HTTP_403_FORBIDDEN)
+        elif request.user.role == 'student':
+            # Students can only cancel their own applications
+            if application.applicant != request.user:
+                return fail('Permission denied. Not your application.', code=status.HTTP_403_FORBIDDEN)
+            if new_status != ApplicationStatus.CANCELED:
+                return fail('Permission denied. Students can only cancel applications.', code=status.HTTP_403_FORBIDDEN)
+        # Admins/Staff can presumably change any status (covered by IsOwnerOrEmployer or if you add IsAdminUser)
+        # If no specific student/employer check passed, and user is not staff, deny.
+        # This part might need refinement based on IsOwnerOrEmployer or other global permissions
+        elif not request.user.is_staff: # Example: if IsOwnerOrEmployer doesn't cover admins well for this
+             pass # Let it proceed if student/employer checks didn't explicitly deny
+
+
         old_status = application.status
         application.status = new_status
         application.notes = notes

@@ -1,21 +1,11 @@
 import apiClient from "./client"
 import type { ApiResponse } from "./client"
-import type { User, UserProfile, Education, Experience, AnyFullProfile } from "@/lib/types"
+import type { User, UserProfile, Education, Experience, AnyFullProfile, PublicProfile } from "@/lib/types"
 import { USER_ROLES, UserRole } from "@/lib/constants/roles"
 
 interface AuthResponse {
   user: User
   token: string
-}
-
-// Interface for the public user profile data
-export interface PublicUserProfileData {
-  id: string | number;
-  full_name: string;
-  role: UserRole;
-  avatar?: string; // URL to avatar
-  location?: string;
-  description?: string;
 }
 
 export const userApi = {
@@ -134,9 +124,9 @@ export const userApi = {
       }
     },
 
-  getPublicUserProfile: async (userId: string | number): Promise<ApiResponse<PublicUserProfileData>> => {
+  getPublicUserProfile: async (userId: string | number): Promise<ApiResponse<PublicProfile>> => {
     try {
-      const response = await apiClient.get<ApiResponse<PublicUserProfileData>>(`/user/profile/${userId}/`)
+      const response = await apiClient.get<ApiResponse<PublicProfile>>(`/user/profile/${userId}/`)
       return response.data
     } catch (error: any) {
       return {

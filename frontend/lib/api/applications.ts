@@ -1,6 +1,8 @@
 import axios from 'axios';
 import apiClient from './client';
 import { Application } from '@/lib/types';
+import type { ApiResponse } from "./client";
+import { toast } from "sonner";
 
 export interface ApplicationsQueryParams {
   page?: number;
@@ -10,15 +12,29 @@ export interface ApplicationsQueryParams {
   ordering?: string;
 }
 
+// Define the structure of the paginated response for getApplications
+interface ApplicationsResponsePayload {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Application[];
+}
+
 export const applicationsApi = {
   // Получение списка заявок с возможностью фильтрации
-  getApplications: async (params?: ApplicationsQueryParams) => {
+  getApplications: async (params?: ApplicationsQueryParams): Promise<ApiResponse<ApplicationsResponsePayload>> => {
     try {
       const response = await apiClient.get('/application/', { params });
       return response.data;
-    } catch (error) {
-      console.error('Error fetching applications:', error);
-      throw error;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || "Failed to retrieve applications";
+      toast.error(errorMessage);
+      // Return a structure consistent with ApiResponse type
+      return {
+        status: "error",
+        message: errorMessage,
+        data: { count: 0, next: null, previous: null, results: [] }, // Ensure data is not undefined
+      };
     }
   },
 
@@ -67,13 +83,35 @@ export const applicationsApi = {
   },
 
   // Обновление статуса заявки
-  updateApplicationStatus: async (id: string, status: string, notes?: string) => {
+  updateApplicationStatus: async (
+    applicationId: string | number,
+    newStatus: string,
+    notes?: string 
+  ): Promise<ApiResponse<Application>> => {
     try {
-      const response = await apiClient.post(`/application/${id}/update_status/`, { status, notes });
+      const payload: { status: string; notes?: string } = { status: newStatus };
+      if (notes) {
+        payload.notes = notes;
+      }
+      // The endpoint is /application/{id}/update_status/
+      const response = await apiClient.post<ApiResponse<Application>>(
+        `/application/${applicationId}/update_status/`,
+        payload
+      );
+      toast.success(response.data.message || "Application status updated successfully!");
       return response.data;
-    } catch (error) {
-      console.error(`Error updating status for application ${id}:`, error);
-      throw error;
+    } catch (error: any) {
+      let errorMessage = "Failed to update application status.";
+      if (axios.isAxiosError(error) && error.response) {
+        const responseData = error.response.data;
+        errorMessage = responseData?.message || responseData?.error?.details?.detail || errorMessage;
+      }
+      toast.error(errorMessage);
+      return {
+        status: "error",
+        message: errorMessage,
+        data: null as any, // Or a more specific error payload
+      };
     }
   },
 
@@ -134,6 +172,37 @@ export const applicationsApi = {
     } catch (error) {
       console.error('Error fetching application stats:', error);
       throw error;
+    }
+  },
+
+  // Function specifically for cancelling an application by a student
+  cancelApplication: async (applicationId: string | number): Promise<ApiResponse<Application | null>> => {
+    try {
+      const response = await apiClient.post<ApiResponse<Application>>(
+        `/application/${applicationId}/update_status/`,
+        { status: "canceled" } // Send status directly for cancellation
+      );
+      
+      if (response.data.status === 'success') {
+        toast.success(response.data.message || "Application cancelled successfully!");
+      } else {
+        // Handle cases where API returns 2xx but indicates logical error in response body
+        toast.error(response.data.message || "Failed to cancel application.");
+      }
+      return response.data;
+    } catch (error: any) {
+      let errorMessage = "Failed to cancel application.";
+      if (axios.isAxiosError(error) && error.response) {
+        const responseData = error.response.data;
+        // Backend might send specific error messages for 403 (e.g., student trying to change to non-canceled status)
+        errorMessage = responseData?.message || responseData?.error?.details?.detail || errorMessage;
+      }
+      toast.error(errorMessage);
+      return {
+        status: "error",
+        message: errorMessage,
+        data: null,
+      };
     }
   },
 };

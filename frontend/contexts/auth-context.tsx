@@ -30,6 +30,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  // Define redirectBasedOnRole function
+  const redirectBasedOnRole = (role: UserRole) => {
+    // Placeholder implementation: customize as needed
+    console.log(`Redirecting based on role: ${role}`);
+    switch (role) {
+      case 'admin':
+        router.push('/admin/dashboard');
+        break;
+      case 'employer':
+        router.push('/employer/dashboard');
+        break;
+      case 'campus':
+        router.push('/campus/dashboard');
+        break;
+      case 'student':
+        router.push('/student/dashboard'); // Or /profile or /jobs
+        break;
+      default:
+        router.push('/profile'); // Default redirect
+    }
+  };
+
   const isUserRole = (role: string): role is UserRole => {
     return role === 'admin' || role === 'employer' || role === 'campus' || role === 'student'
   }

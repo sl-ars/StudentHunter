@@ -165,11 +165,6 @@ export default function Header() {
                         <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
                       </div>
                     </div>
-                    <div className="p-3 border-b dark:border-gray-700">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Profile Completion</p>
-                      <Progress value={profileCompletion} className="h-1.5 mt-1.5" />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{profileCompletion}% Complete</p>
-                    </div>
                     <div className="p-1">
                       <DropdownMenuItem asChild className="rounded-lg">
                         <Link href={`/profile`} className="flex items-center cursor-pointer">

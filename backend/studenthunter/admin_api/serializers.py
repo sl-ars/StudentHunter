@@ -40,7 +40,7 @@ class JobAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = ['id', 'title', 'company', 'company_name', 'location', 'type', 
-                  'salary', 'posted_date', 'deadline', 'is_active', 'status', 
+                  'salary_min', 'salary_max', 'posted_date', 'deadline', 'is_active', 'status',
                   'created_by', 'created_by_email', 'view_count', 'application_count']
 
 class CompanyAdminSerializer(serializers.ModelSerializer):

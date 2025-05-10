@@ -1,5 +1,5 @@
 import apiClient from "./client"
-import type { Job, JobApplication, Company } from "@/lib/types"
+import type { Job, Application, Company } from "@/lib/types"
 
 interface ApiResponse<T> {
   data: T
@@ -17,21 +17,30 @@ const ensureArray = (value: any): string[] => {
 
 export const employerApi = {
   // Jobs
-  getJobs: async (params?: any) => {
+  getJobs: async (params?: any): Promise<Job[]> => {
     try {
-      console.log("Fetching employer jobs");
-      const response = await apiClient.get<ApiResponse<Job[]>>("/job/employer/jobs/", { params })
-      
-      if (response.data) {
-        console.log("Successfully fetched employer jobs:", response.data);
-        return response.data;
+      console.log("Fetching employer jobs with personal scope");
+      const requestParams = {
+        ...params,
+        scope: "personal",
+      };
+      // The backend response is FullBackendApiResponse
+      // where FullBackendApiResponse.data contains { count, next, previous, results: Job[] }
+      const response = await apiClient.get<any>("/job/", { params: requestParams })
+
+      // Check if the response structure is as expected and contains the jobs array
+      if (response.data && response.data.status === "success" && response.data.data && Array.isArray(response.data.data.results)) {
+        console.log("Successfully fetched and processed employer jobs:", response.data.data.results);
+        return response.data.data.results; // Return just the array of jobs
       } else {
-        console.warn("Unexpected response format from jobs API:", response);
-        throw new Error("Invalid response format from jobs API");
+        console.warn("Unexpected response format or error in jobs API response:", response.data);
+        return []; // Return empty array if data is not in expected format
       }
     } catch (error: any) {
       console.error("Error fetching employer jobs:", error)
-      throw error
+      // Optionally, re-throw or handle as per application's error handling strategy
+      // For now, returning empty array to prevent UI breakage
+      return []; 
     }
   },
 
@@ -69,7 +78,8 @@ export const employerApi = {
 
   updateJob: async (jobId: string, jobData: Partial<Job>) => {
     try {
-      const response = await apiClient.put<ApiResponse<Job>>(`/job/employer/jobs/${jobId}/`, jobData)
+      // Use PATCH and the /job/:id/ endpoint
+      const response = await apiClient.patch<ApiResponse<Job>>(`/job/${jobId}/`, jobData)
       return response.data
     } catch (error: any) {
       console.error(`Error updating job ${jobId}:`, error)
@@ -88,27 +98,28 @@ export const employerApi = {
   },
 
   // Applications
-  getApplications: async (params?: any) => {
+  getApplications: async (params?: any): Promise<Application[]> => {
     try {
       console.log("Fetching employer applications");
-      // Use the specific endpoint for employer applications
-      const response = await apiClient.get<ApiResponse<JobApplication[]>>("/application/employer/", { params })
+      // The backend returns a paginated structure like: { status, message, data: { count, results: Application[] } }
+      const response = await apiClient.get<any>("/application/", { params })
       
-      if (response.data) {
-        console.log("Successfully fetched employer applications:", response.data);
-        return response.data;
+      // Check if the response structure is as expected and contains the applications array
+      if (response.data && response.data.status === "success" && response.data.data && Array.isArray(response.data.data.results)) {
+        console.log("Successfully fetched and processed employer applications:", response.data.data.results);
+        return response.data.data.results; // Return just the array of applications
       } else {
-        console.warn("Unexpected response format from applications API:", response);
-        throw new Error("Invalid response format from applications API");
+        console.warn("Unexpected response format or error in applications API response:", response.data);
+        return []; // Return empty array if data is not in expected format
       }
     } catch (error: any) {
       console.error("Error fetching applications:", error)
-      throw error
+      return []; // Return empty array on error to prevent UI breakage
     }
   },
 
   getApplication: async (id: string) => {
-    const response = await apiClient.get<ApiResponse<JobApplication>>(`/application/${id}/`)
+    const response = await apiClient.get<ApiResponse<Application>>(`/application/${id}/`)
     return response.data
   },
 
