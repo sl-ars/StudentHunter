@@ -3,26 +3,107 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes
 from jobs.models import Job
 from jobs.serializers import JobSerializer, JobListSerializer
 from applications.models import Application
 from applications.serializers import ApplicationSerializer
-from jobs.permissions import IsEmployerOrReadOnly, IsApplicantOrEmployer
+from jobs.permissions import IsOwnerOrAdminOrReadOnly, IsApplicantOrEmployer
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 
+# Кастомный фильтр сортировки
+class CustomOrderingFilter(filters.OrderingFilter):
+    ordering_param = 'sort' # Используем ?sort=... вместо ?ordering=...
+    ordering_fields_aliases = {
+        'recent': ['-posted_date'],
+        'popular': ['-view_count', '-application_count'],
+        'featured': ['-featured', '-posted_date'],
+        'salary_high': ['-salary'],
+        'salary_low': ['salary'],
+        'deadline': ['deadline'],
+    }
+    ordering_description = (
+        "Sort order. Available aliases: "
+        "`recent` (newest first by posted_date), "
+        "`popular` (most popular by view_count, then application_count), "
+        "`featured` (featured first, then newest by posted_date), "
+        "`salary_high` (highest salary first), "
+        "`salary_low` (lowest salary first), "
+        "`deadline` (closest deadline first). "
+        "You can also use direct model field names from `ordering_fields` (e.g., `title`, `-salary`). "
+        "Prefix an alias or field with `-` to reverse its effective sort direction (e.g., `-recent` for oldest first, or `salary` for ascending salary)."
+    )
+
+    def get_ordering(self, request, queryset, view):
+        params = request.query_params.get(self.ordering_param)
+        if params:
+            fields = [param.strip() for param in params.split(',')]
+            ordering = []
+            for field in fields:
+                prefix = ''
+                actual_field_name = field
+                if field.startswith('-'):
+                    prefix = '-'
+                    actual_field_name = field[1:]
+                
+                if actual_field_name in self.ordering_fields_aliases:
+                    aliased_fields = self.ordering_fields_aliases[actual_field_name]
+                    for aliased_field in aliased_fields:
+                        if prefix == '-': # инвертируем сортировку для псевдонима
+                            ordering.append(aliased_field[1:] if aliased_field.startswith('-') else prefix + aliased_field)
+                        else:
+                            ordering.append(aliased_field)
+                else:
+                    # Это не псевдоним, передаем как есть для стандартной обработки OrderingFilter
+                    if hasattr(view, 'ordering_fields') and actual_field_name in view.ordering_fields:
+                         ordering.append(field)
+            
+            if ordering:
+                return ordering
+        
+        return self.get_default_ordering(view)
+
 @extend_schema(tags=['jobs'])
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='scope',
+                description="Set to 'personal' to view your own jobs (for employers).",
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                enum=['personal']
+            ),
+            OpenApiParameter(
+                name='is_active',
+                description="Filter by job activity status ('true' or 'false'). Defaults to 'true' for non-admin users if not specified.",
+                required=False,
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name='industry',
+                description="Filter by industry.",
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY
+            )
+        ]
+    )
+)
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
-    permission_classes = [IsEmployerOrReadOnly]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['type', 'industry', 'location', 'is_active', 'featured']
+    permission_classes = [IsOwnerOrAdminOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, CustomOrderingFilter]
+    filterset_fields = ['type', 'industry', 'location']
     search_fields = ['title', 'description', 'company', 'requirements']
-    ordering_fields = ['posted_date', 'salary', 'view_count', 'application_count', 'title']
+    ordering_fields = ['posted_date', 'salary', 'view_count', 'application_count', 'title', 'featured', 'deadline']
+    ordering = ['-posted_date']
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -30,15 +111,34 @@ class JobViewSet(viewsets.ModelViewSet):
         return JobSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.request.user.is_authenticated:
-            if self.request.user.role == 'employer' and self.action in ['list', 'retrieve']:
-                # Для действий list и retrieve работодатели видят все вакансии
-                return queryset.filter(is_active=True)
-            elif self.request.user.role == 'employer':
-                # Для других действий работодатель видит только свои вакансии
-                return queryset.filter(created_by=self.request.user)
-        return queryset.filter(is_active=True)  # Неавторизованные пользователи видят только активные вакансии
+        user = self.request.user
+        queryset = Job.objects.all()
+
+        scope = self.request.query_params.get('scope', None) # Default to None if not provided
+        is_active_param = self.request.query_params.get('is_active', None)
+
+        # Применяем фильтр по scope
+        if scope == 'personal' and user.is_authenticated and user.role == 'employer':
+            queryset = queryset.filter(created_by=user)
+        # Если scope не 'personal' или пользователь не эмплоер, то scope не применяется (показываются все вакансии, если нет других фильтров)
+
+        # Применяем фильтр по активности
+        if user.is_authenticated:
+            if user.is_staff: # Администраторы
+                if is_active_param is not None:
+                    queryset = queryset.filter(is_active=(is_active_param.lower() == 'true'))
+            else: # Все остальные пользователи
+                if is_active_param is not None:
+                    queryset = queryset.filter(is_active=(is_active_param.lower() == 'true'))
+                else:
+                    queryset = queryset.filter(is_active=True) # По умолчанию активные
+        else: # Неаутентифицированные пользователи
+            if is_active_param is not None:
+                queryset = queryset.filter(is_active=(is_active_param.lower() == 'true'))
+            else:
+                queryset = queryset.filter(is_active=True) # По умолчанию активные
+        
+        return queryset
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -167,65 +267,6 @@ class JobViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
-
-    @action(detail=False, methods=['get'])
-    def employer_jobs(self, request):
-        """Get all jobs of the current employer"""
-        if not request.user.is_authenticated or request.user.role != 'employer':
-            return Response(
-                {'error': 'Unauthorized'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        jobs = Job.objects.filter(created_by=request.user)
-        
-        # Filter by activity status
-        active_filter = request.query_params.get('active')
-        if active_filter is not None:
-            is_active = active_filter.lower() == 'true'
-            jobs = jobs.filter(is_active=is_active)
-        
-        serializer = self.get_serializer(jobs, many=True)
-        
-        # Format response to match frontend expectations
-        return Response({
-            'status': 'success',
-            'data': serializer.data,
-            'message': 'Jobs retrieved successfully'
-        })
-    
-    @action(detail=False, methods=['get'])
-    def featured(self, request):
-        """Получить рекомендуемые вакансии."""
-        featured_jobs = Job.objects.filter(featured=True, is_active=True)
-        serializer = self.get_serializer(featured_jobs, many=True)
-        return Response({
-            'status': 'success',
-            'data': serializer.data,
-            'message': 'Featured jobs retrieved successfully'
-        })
-    
-    @action(detail=False, methods=['get'])
-    def recent(self, request):
-        """Получить недавние вакансии."""
-        recent_jobs = Job.objects.filter(is_active=True).order_by('-posted_date')[:10]
-        serializer = self.get_serializer(recent_jobs, many=True)
-        return Response({
-            'status': 'success',
-            'data': serializer.data,
-            'message': 'Recent jobs retrieved successfully'
-        })
-    
-    @action(detail=False, methods=['get'])
-    def popular(self, request):
-        """Получить популярные вакансии (по просмотрам и заявкам)."""
-        popular_jobs = Job.objects.filter(is_active=True).order_by('-view_count', '-application_count')[:10]
-        serializer = self.get_serializer(popular_jobs, many=True)
-        return Response({
-            'status': 'success',
-            'data': serializer.data,
-            'message': 'Popular jobs retrieved successfully'
-        })
 
 @extend_schema(tags=['jobs'])
 class JobApplicationViewSet(viewsets.ModelViewSet):

@@ -4,6 +4,26 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 class Job(models.Model):
+    INDUSTRY_CHOICES = [
+        ('technology', 'Technology'),
+        ('finance', 'Finance'),
+        ('healthcare', 'Healthcare'),
+        ('education', 'Education'),
+        ('manufacturing', 'Manufacturing'),
+        ('retail', 'Retail'),
+        ('marketing', 'Marketing'),
+        ('media', 'Media & Entertainment'),
+        ('construction', 'Construction'),
+        ('transportation', 'Transportation'),
+        ('energy', 'Energy'),
+        ('telecommunications', 'Telecommunications'),
+        ('other', 'Other'),
+    ]
+
+    SCOPE_CHOICES = [
+        ('personal', 'My Jobs'),
+    ]
+
     title = models.CharField(max_length=255)
     company = models.CharField(max_length=255)
     company_id = models.CharField(max_length=255)
@@ -18,7 +38,7 @@ class Job(models.Model):
     deadline = models.DateTimeField(null=True, blank=True)
     featured = models.BooleanField(default=False)
     logo = models.ImageField(upload_to='job_logos/', null=True, blank=True)
-    industry = models.CharField(max_length=255, null=True, blank=True)
+    industry = models.CharField(max_length=255, choices=INDUSTRY_CHOICES, null=True, blank=True)
     view_count = models.IntegerField(default=0)
     application_count = models.IntegerField(default=0)
     status = models.CharField(max_length=50, default='active')

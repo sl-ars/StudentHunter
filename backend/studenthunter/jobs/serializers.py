@@ -10,6 +10,7 @@ class JobSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField(read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
     is_applied = serializers.SerializerMethodField(read_only=True)
+    logo = serializers.ImageField(required=False, allow_null=True)
     
     class Meta:
         model = Job
@@ -50,8 +51,10 @@ class JobSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Пользовательская валидация для полей вакансии."""
         # Проверяем, что дедлайн позже текущей даты
-        if 'deadline' in data and data['deadline'] and data['deadline'] < data.get('posted_date', 
-                                                                                 self.instance.posted_date if self.instance else None):
+        deadline = data.get('deadline')
+        posted_date = data.get('posted_date')
+        
+        if deadline and posted_date and deadline < posted_date:
             raise serializers.ValidationError("Deadline must be later than the posting date.")
         
         # Проверяем, что указаны требования для вакансии
