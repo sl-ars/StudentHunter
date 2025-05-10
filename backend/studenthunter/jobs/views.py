@@ -10,9 +10,10 @@ from applications.models import Application
 from applications.serializers import ApplicationSerializer
 from jobs.permissions import IsOwnerOrAdminOrReadOnly, IsApplicantOrEmployer
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from django.utils import timezone
 from datetime import timedelta
+from analytics.models import JobView
 
 # Кастомный фильтр сортировки
 class CustomOrderingFilter(filters.OrderingFilter):
@@ -142,10 +143,29 @@ class JobViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        # Увеличиваем счетчик просмотров
-        if not request.user.is_authenticated or request.user != instance.created_by:
-            instance.view_count += 1
-            instance.save(update_fields=['view_count'])
+        
+        # Создаем запись о просмотре и увеличиваем счетчик просмотров
+        # Проверяем, что просмотр не от самого создателя вакансии
+        # и что пользователь аутентифицирован для создания JobView с viewer
+        # Если пользователь не аутентифицирован, viewer будет None
+        
+        viewer_user = request.user if request.user.is_authenticated else None
+        
+        # Увеличиваем счетчик просмотров в Job.view_count
+        # Это можно делать всегда, когда кто-то просматривает, независимо от того, создатель это или нет,
+        # т.к. это просто общий счетчик для популярности.
+        Job.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+        instance.refresh_from_db(fields=['view_count']) # Обновляем инстанс из БД
+
+        # Создаем запись JobView, если это не создатель вакансии
+        # или если просмотры создателя тоже нужно логировать (в данном случае - логируем все просмотры)
+        # (Решение: логируем все просмотры, включая просмотры автора, для полноты данных)
+        JobView.objects.create(
+            job=instance,
+            viewer=viewer_user,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            # duration можно будет добавить позже, если будет логика отслеживания времени на странице
+        )
         
         serializer = self.get_serializer(instance)
         return Response({

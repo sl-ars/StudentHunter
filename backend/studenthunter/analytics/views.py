@@ -1,21 +1,20 @@
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, viewsets, permissions
+from rest_framework import status, viewsets, permissions, filters
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from django_filters.rest_framework import DjangoFilterBackend
 from jobs.models import Job
-from applications.models import Application
-from companies.models import Company
+from applications.models import Application, ApplicationStatus
 from analytics.models import JobView, JobApplicationMetrics, EmployerMetrics
 from analytics.serializers import JobViewSerializer, JobApplicationMetricsSerializer, EmployerMetricsSerializer
-from django.db import models
-from users.models import EmployerProfile
+from analytics.permissions import AnalyticsPermissions
+from django.db.models import Count, Avg, F, Sum, DateField, Q
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear, Cast
-from django.db.models import DateField, Count
+from .utils import get_date_range_and_trunc
 
 @extend_schema(
     tags=['analytics'],
@@ -23,581 +22,202 @@ from django.db.models import DateField, Count
     description="Provides comprehensive analytics data for employers including job statistics, application trends, and performance metrics."
 )
 class EmployerAnalyticsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AnalyticsPermissions]
 
     @extend_schema(
         parameters=[
-            OpenApiParameter(name='period', description='Time period for analytics aggregation (e.g., "week", "month", "year"). Default is "month".', required=False, type=OpenApiTypes.STR, enum=['week', 'month', 'year'])
-        ],
-        responses={
-            200: {
-                'type': 'object',
-                'properties': {
-                    'status': {'type': 'string'},
-                    'message': {'type': 'string'},
-                    'data': {'type': 'object'}
-                }
-            },
-            403: {'description': 'Access denied if user is not an employer.'},
-            404: {'description': 'Employer profile not found.'}
-        }
+            OpenApiParameter(name='period', description='Time period for analytics aggregation (e.g., "week", "month", "year"). Default is "month".', required=False, type=OpenApiTypes.STR, enum=['week', 'month', 'year']),
+            OpenApiParameter(name='employer_id', description='(Admin only) ID of the employer to fetch analytics for.', required=False, type=OpenApiTypes.INT, location=OpenApiParameter.QUERY)
+        ]
     )
     def get(self, request):
-        try:
-            # Check if user is an employer
-            if request.user.role != 'employer':
-                return Response({
-                    "status": "error",
-                    "message": "Access denied. Only employers can access this data.",
-                    "data": None
-                }, status=status.HTTP_403_FORBIDDEN)
-            
-            period = request.query_params.get('period', 'month')
-            now = timezone.now()
+        if not request.user.is_authenticated:
+            return Response({"status": "error", "message": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # Set date range based on period
-            if period == 'week':
-                start_date = now - timedelta(days=7)
-                trunc_function = TruncDay
-            elif period == 'month':
-                start_date = now - timedelta(days=30)
-                trunc_function = TruncDay
-            elif period == 'year':
-                start_date = now - timedelta(days=365)
-                trunc_function = TruncMonth
-            else:
-                start_date = now - timedelta(days=30)
-                trunc_function = TruncDay
+        employer_user = request.user
+        if request.user.is_staff:
+            employer_id_param = request.query_params.get('employer_id')
+            if employer_id_param:
+                try:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    employer_user = User.objects.get(pk=employer_id_param, role='employer')
+                except User.DoesNotExist:
+                    return Response({"status": "error", "message": "Employer not found."}, status=status.HTTP_404_NOT_FOUND)
+                except ValueError: # Handle invalid employer_id format
+                    return Response({"status": "error", "message": "Invalid employer_id format."}, status=status.HTTP_400_BAD_REQUEST)
+            # If admin and no employer_id, they might see their own if they are also an employer, or an error/empty set.
+            # For now, let's assume if admin and no employer_id, it defaults to their own employer profile if applicable.
+            # Or, we could require employer_id for admins unless they are also an employer.
+            # This part depends on desired admin behavior for this specific endpoint.
 
-            # Initialize data structures
-            application_stats_data = []
-            job_views_data = []
-            job_statuses_data = []
-            application_statuses_data = []
-            popular_jobs_data = []
-            
-            try:
-                # Get jobs created by this employer
-                jobs = Job.objects.filter(created_by=request.user)
-                total_jobs = jobs.count()
-                active_jobs = jobs.filter(is_active=True).count()
-                
-                # Get detailed job status counts
-                filled_jobs = jobs.filter(status='filled').count()
-                draft_jobs = jobs.filter(status='draft').count()
-                archived_jobs = jobs.filter(status='archived').count()
-                expired_jobs = jobs.filter(status='expired').count()
-            except Exception as e:
-                print(f"Error getting job data: {str(e)}")
-                return Response({
-                    "status": "error",
-                    "message": f"Error retrieving job data: {str(e)}",
-                    "data": None
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            try:
-                # Get applications for employer's jobs
-                applications = Application.objects.filter(job__in=jobs)
-                total_applications = applications.count()
-                pending_applications = applications.filter(status='pending').count()
-                reviewing_applications = applications.filter(status='reviewing').count()
-                accepted_applications = applications.filter(status='accepted').count()
-                rejected_applications = applications.filter(status='rejected').count()
-                
-                # Get interviews data
-                interviews_scheduled = applications.filter(status='interviewed', interview_date__isnull=False).count()
-                interviews_completed = applications.filter(status='interviewed', interview_date__lt=now).count()
-                interviews_canceled = applications.filter(status='canceled', interview_date__isnull=False).count()
-            except Exception as e:
-                print(f"Error getting application data: {str(e)}")
-                return Response({
-                    "status": "error",
-                    "message": f"Error retrieving application data: {str(e)}",
-                    "data": None
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            try:
-                # Get real view counts if available
-                job_views = JobView.objects.filter(job__in=jobs).count()
-            except Exception as e:
-                print(f"Error getting job view count: {str(e)}")
-                job_views = 0
-            
-            try:
-                # Application stats by date (real data)
-                application_stats = Application.objects.filter(
-                    job__in=jobs,
-                    created_at__gte=start_date
-                ).annotate(
-                    date=trunc_function('created_at')
-                ).values('date').annotate(
-                    applications=Count('id')
-                ).order_by('date')
-                
-                application_stats_data = [
-                    {
-                        "date": item['date'].strftime("%Y-%m-%d") if item['date'] else "",
-                        "applications": item['applications']
-                    }
-                    for item in application_stats
-                ]
-            except Exception as e:
-                print(f"Error getting application stats: {str(e)}")
-                application_stats_data = []
-            
-            try:
-                # Job views by date (real data if available)
-                job_view_stats = JobView.objects.filter(
-                    job__in=jobs,
-                    viewed_at__gte=start_date
-                ).annotate(
-                    date=trunc_function('viewed_at')
-                ).values('date').annotate(
-                    views=Count('id')
-                ).order_by('date')
-                
-                job_views_data = [
-                    {
-                        "date": item['date'].strftime("%Y-%m-%d") if item['date'] else "",
-                        "views": item['views']
-                    }
-                    for item in job_view_stats
-                ]
-            except Exception as e:
-                print(f"Error getting job view stats: {str(e)}")
-                job_views_data = []
-            
-            try:
-                # Job status breakdown (real data)
-                job_statuses_data = [
-                    {"name": "Active", "value": active_jobs},
-                    {"name": "Filled", "value": filled_jobs},
-                    {"name": "Draft", "value": draft_jobs}
-                ]
-                
-                # Add archived and expired jobs if there are any
-                if archived_jobs > 0:
-                    job_statuses_data.append({"name": "Archived", "value": archived_jobs})
-                if expired_jobs > 0:
-                    job_statuses_data.append({"name": "Expired", "value": expired_jobs})
-                
-                # Application status breakdown (real data)
-                application_statuses_data = [
-                    {"name": "Pending", "value": pending_applications},
-                    {"name": "Reviewing", "value": reviewing_applications},
-                    {"name": "Accepted", "value": accepted_applications},
-                    {"name": "Rejected", "value": rejected_applications}
-                ]
-            except Exception as e:
-                print(f"Error generating status data: {str(e)}")
-                # Use empty arrays if there was an error
-                job_statuses_data = []
-                application_statuses_data = []
-            
-            try:
-                # Popular jobs (real data, based on views and applications)
-                popular_jobs_data = []
-                
-                # Get view counts for each job
-                job_view_counts = {}
-                job_view_count_data = JobView.objects.filter(job__in=jobs).values('job').annotate(
-                    total_views=Count('id')
-                )
-                for item in job_view_count_data:
-                    job_view_counts[item['job']] = item['total_views']
-                
-                # Get application counts for each job
-                job_application_counts = {}
-                job_app_counts = Application.objects.filter(job__in=jobs).values('job').annotate(
-                    total_applications=Count('id')
-                )
-                for item in job_app_counts:
-                    job_application_counts[item['job']] = item['total_applications']
-                
-                # Get the 5 most viewed/applied to jobs
-                for job in jobs.order_by('-created_at')[:5]:
-                    views = job_view_counts.get(job.id, 0)
-                    applications = job_application_counts.get(job.id, 0)
-                    conversion_rate = round((applications / views * 100) if views > 0 else 0, 1)
-                    
-                    popular_jobs_data.append({
-                        "id": job.id,
-                        "title": job.title,
-                        "views": views,
-                        "applications": applications,
-                        "conversionRate": conversion_rate
-                    })
-            except Exception as e:
-                print(f"Error generating popular jobs data: {str(e)}")
-                popular_jobs_data = []
-            
-            # Format response data in exactly the structure expected by the frontend
-            response_data = {
-                "stats": {
-                    "jobs": {
-                        "total": total_jobs,
-                        "active": active_jobs,
-                        "filled": filled_jobs,
-                        "draft": draft_jobs,
-                        "views": job_views
-                    },
-                    "applications": {
-                        "total": total_applications,
-                        "pending": pending_applications,
-                        "reviewing": reviewing_applications,
-                        "accepted": accepted_applications,
-                        "rejected": rejected_applications
-                    },
-                    "clicks": {
-                        "total": job_views,
-                        "applied": total_applications,
-                        "applyRate": float(total_applications) / job_views if job_views > 0 else 0
-                    },
-                    "interviews": {
-                        "scheduled": interviews_scheduled,
-                        "completed": interviews_completed,
-                        "canceled": interviews_canceled
-                    }
-                },
-                "analytics": {
-                    "jobViews": job_views_data,
-                    "applicationStats": application_stats_data,
-                    "applicationStatuses": application_statuses_data,
-                    "jobStatusesData": job_statuses_data,
-                    "popularJobs": popular_jobs_data
-                }
-            }
-
-            return Response({
-                "status": "success",
-                "message": "Analytics data retrieved successfully",
-                "data": response_data
-            })
-            
-        except Exception as e:
-            print(f"Error in analytics endpoint: {str(e)}")
-            return Response({
-                "status": "error",
-                "message": f"Error retrieving analytics data: {str(e)}",
-                "data": None
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@extend_schema(
-    tags=['analytics'],
-    summary="Retrieve Employer Analytics Overview",
-    description="Provides a summary of employer analytics such as active jobs, total applications, interviews scheduled, and response rates. Data can be filtered by a time period."
-)
-class ManagerAnalyticsView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(name='period', description='Time period for analytics aggregation (e.g., "week", "month"). Default is "month".', required=False, type=OpenApiTypes.STR, enum=['week', 'month'])
-        ],
-        responses={
-            200: {
-                'type': 'object',
-                'properties': {
-                    'activeJobs': {'type': 'integer'},
-                    'jobsChange': {'type': 'string'},
-                    'totalApplications': {'type': 'integer'},
-                    'applicationsChange': {'type': 'string'},
-                    'interviewsScheduled': {'type': 'integer'},
-                    'interviewsChange': {'type': 'string'},
-                    'responseRate': {'type': 'string'},
-                    'responseRateChange': {'type': 'string'},
-                }
-            },
-            403: {'description': 'Access denied if user is not an employer.'},
-            404: {'description': 'Employer profile not found.'}
-        }
-    )
-    def get(self, request):
-        if request.user.role != 'employer':
-            return Response({"error": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
-
-        employer_profile = EmployerProfile.objects.filter(user=request.user).first()
-        if not employer_profile:
-            return Response({"error": "Employer profile not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        period = request.query_params.get('period', 'month')
-        now = timezone.now()
-
-        if period == 'week':
-            start_date = now - timedelta(days=7)
-        elif period == 'month':
-            start_date = now - timedelta(days=30)
-        else: # Default to month
-            start_date = now - timedelta(days=30)
-            period = 'month'
-
-
-        active_jobs = Job.objects.filter(created_by=request.user, is_active=True).count()
-        previous_jobs_count = Job.objects.filter(
-            created_by=request.user,
-            is_active=True,
-            posted_date__lt=start_date
-        ).count()
-        jobs_change_value = active_jobs - previous_jobs_count
-        jobs_change = f"{'+' if jobs_change_value >= 0 else ''}{jobs_change_value} this {period}"
-
-
-        total_applications = Application.objects.filter(job__created_by=request.user).count()
-        previous_applications_count = Application.objects.filter(
-            job__created_by=request.user,
-            created_at__lt=start_date
-        ).count()
-        applications_change_value = total_applications - previous_applications_count
-        applications_change = f"{'+' if applications_change_value >= 0 else ''}{applications_change_value} this {period}"
-
-        interviews_scheduled = Application.objects.filter(
-            job__created_by=request.user,
-            status='interviewed',
-            interview_date__gte=now, # Scheduled for now or future
-            # Consider if interview_date__lte should be for "next 7 days" or "this period"
-        ).count()
-        # interviews_change logic might need refinement based on exact requirement for "change"
-
-        responded_applications = Application.objects.filter(
-            job__created_by=request.user,
-            status__in=['reviewing', 'interviewed', 'accepted', 'rejected']
-        )
-        total_responses = responded_applications.count()
-        response_rate = (total_responses / total_applications * 100) if total_applications > 0 else 0
-
-        previous_responded_applications_count = Application.objects.filter(
-            job__created_by=request.user,
-            status__in=['reviewing', 'interviewed', 'accepted', 'rejected'],
-            created_at__lt=start_date
-        ).count()
+        elif request.user.role != 'employer':
+             return Response({"status": "error", "message": "Access Denied. Only employers or admins can access this data."}, status=status.HTTP_403_FORBIDDEN)
         
-        previous_response_rate = (previous_responded_applications_count / previous_applications_count * 100) if previous_applications_count > 0 else 0
-        response_rate_change_value = response_rate - previous_response_rate
-        response_rate_change = f"{'+' if response_rate_change_value >= 0 else ''}{response_rate_change_value:.1f}% this {period}"
+        period = request.query_params.get('period', 'month')
+        start_date, end_date, trunc_function = get_date_range_and_trunc(period)
 
-        return Response({
-            "activeJobs": active_jobs,
-            "jobsChange": jobs_change,
-            "totalApplications": total_applications,
-            "applicationsChange": applications_change,
-            "interviewsScheduled": interviews_scheduled,
-             # Assuming "interviewsChange" is a static label or needs specific logic
-            "interviewsChange": "For upcoming period" if period == 'month' else "For next 7 days",
-            "responseRate": f"{response_rate:.1f}%",
-            "responseRateChange": response_rate_change,
-        })
+        employer_jobs = Job.objects.filter(created_by=employer_user)
+        job_ids = employer_jobs.values_list('id', flat=True)
+
+        # Job Stats
+        total_jobs_count = employer_jobs.count()
+        active_jobs_count = employer_jobs.filter(is_active=True).count()
+        # filled_jobs_count = employer_jobs.filter(status=JobStatus.FILLED).count() # Assuming JobStatus model or choices
+        # draft_jobs_count = employer_jobs.filter(status=JobStatus.DRAFT).count()
+
+        # Application Stats
+        applications_qs = Application.objects.filter(job_id__in=job_ids)
+        total_applications_count = applications_qs.count()
+        
+        application_status_counts = {status[0]: 0 for status in ApplicationStatus.choices}
+        status_agg = applications_qs.values('status').annotate(count=Count('id'))
+        for item in status_agg:
+            application_status_counts[item['status']] = item['count']
+
+        # Job Views (now from JobView model for accuracy)
+        total_job_views_count = JobView.objects.filter(job_id__in=job_ids).count()
+
+        # Time-series application data
+        application_stats_by_date = applications_qs.filter(created_at__gte=start_date, created_at__lte=end_date).annotate(
+            date=trunc_function('created_at')
+        ).values('date').annotate(applications=Count('id')).order_by('date')
+
+        # Time-series job view data (from JobView model)
+        job_view_stats_by_date = JobView.objects.filter(job_id__in=job_ids, viewed_at__gte=start_date, viewed_at__lte=end_date).annotate(
+            date=trunc_function('viewed_at')
+        ).values('date').annotate(views=Count('id')).order_by('date')
+
+        # Popular Jobs (top 5 by views from JobView, then applications from Application model)
+        # This query becomes more complex if Job.view_count is not the primary source.
+        # For now, let's use Job.view_count as it's simpler and already there.
+        # If Job.view_count is deprecated in favor of JobView sums, this needs adjustment.
+        popular_jobs_data = list(employer_jobs.annotate(
+            num_applications=Count('applications') # Assumes related_name='applications' on Job model
+        ).order_by('-view_count', '-num_applications')[:5].values('id', 'title', 'view_count', num_applications=F('num_applications')))
+
+        response_data = {
+            "summary": {
+                "total_jobs": total_jobs_count,
+                "active_jobs": active_jobs_count,
+                "total_applications": total_applications_count,
+                "application_status_counts": application_status_counts, # Added status breakdown
+                "total_job_views": total_job_views_count, # Changed to sum from JobView
+            },
+            "time_series": {
+                "applications_over_time": list(application_stats_by_date),
+                "job_views_over_time": list(job_view_stats_by_date),
+            },
+            "popular_jobs": popular_jobs_data,
+        }
+        return Response({"status": "success", "data": response_data}, status=status.HTTP_200_OK)
 
 @extend_schema(tags=['analytics'])
-class JobViewViewSet(viewsets.ModelViewSet):
+class JobViewViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = JobView.objects.all()
     serializer_class = JobViewSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AnalyticsPermissions]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['job', 'viewer', 'ip_address']
+    ordering_fields = ['viewed_at', 'duration']
+    ordering = ['-viewed_at']
 
-    @extend_schema(summary="Record a Job View")
-    def perform_create(self, serializer): # Schema for create action is inherited if serializer_class is set
-        serializer.save(
-            viewer=self.request.user,
-            ip_address=self.request.META.get('REMOTE_ADDR')
-        )
-    
-    @extend_schema(summary="List Job Views")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(summary="Retrieve a Job View")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @extend_schema(summary="Create a Job View Record", request=JobViewSerializer, responses={201: JobViewSerializer})
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-    
-    @extend_schema(summary="Update a Job View Record")
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @extend_schema(summary="Partially update a Job View Record")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @extend_schema(summary="Delete a Job View Record")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
-
+    # Create is handled by JobViewSet.retrieve normally. Direct creation is admin-only if ever needed.
+    # No perform_create here as it should be system-triggered or admin-triggered.
 
 @extend_schema(tags=['analytics'])
-class JobApplicationMetricsViewSet(viewsets.ModelViewSet):
+class JobApplicationMetricsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = JobApplicationMetrics.objects.all()
     serializer_class = JobApplicationMetricsSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AnalyticsPermissions]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['job', 'application', 'source', 'status']
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
+
+    # Metrics are typically system-generated. CRUD for admins if direct manipulation is needed.
 
     @extend_schema(
-        summary="Get Job View and Application Trends",
-        description="Provides daily counts of views and applications for a specific job over a specified number of days.",
+        summary="Get Job View and Application Trends for a specific Job Metric (or its related Job)",
         parameters=[
-            OpenApiParameter(name='days', description='Number of past days to fetch trends for (default 7).', required=False, type=OpenApiTypes.INT)
-        ],
-        responses={
-            200: {
-                'type': 'object',
-                'properties': {
-                    'views': {'type': 'array', 'items': {'type': 'object', 'properties': {'viewed_at__date': {'type': 'string', 'format': 'date'}, 'count': {'type': 'integer'}}}},
-                    'applications': {'type': 'array', 'items': {'type': 'object', 'properties': {'created_at__date': {'type': 'string', 'format': 'date'}, 'count': {'type': 'integer'}}}}
-                }
-            }
-        }
+            OpenApiParameter(name='days', description='Number of past days to fetch trends for (default 30).', required=False, type=OpenApiTypes.INT)
+        ]
     )
     @action(detail=True, methods=['get'])
     def trends(self, request, pk=None):
-        # The pk for JobApplicationMetrics might not be directly used if trends are for its related Job
-        # Assuming 'self.get_object()' gets a JobApplicationMetrics instance, then .job gets the Job
+        # pk here refers to JobApplicationMetrics ID. We need the related Job.
         try:
-            metric_instance = self.get_object() # Gets JobApplicationMetrics instance based on pk
-            job = metric_instance.job 
+            metric_instance = self.get_object() # Ensures an instance exists and permissions are checked
+            job = metric_instance.job
         except JobApplicationMetrics.DoesNotExist:
-             return Response({"error": "JobApplicationMetrics not found for the given ID"}, status=status.HTTP_404_NOT_FOUND)
-        except Job.DoesNotExist: # If metric_instance.job does not exist
-            return Response({"error": "Associated Job not found for this metric"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "JobApplicationMetrics not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Job.DoesNotExist:
+             return Response({"error": "Associated Job not found for this metric."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Further permission check: if user is employer, can they see trends for this job?
+        if request.user.role == 'employer' and job.created_by != request.user:
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-        days = int(request.query_params.get('days', 7))
-        end_date = timezone.now()
-        start_date = end_date - timedelta(days=days)
+        days = int(request.query_params.get('days', 30))
+        start_date, end_date, _ = EmployerAnalyticsView()._get_date_range_and_trunc(str(days)) # Hacky way to reuse, better to make it a utility
 
-        daily_views = JobView.objects.filter(
-            job=job, # Filter by the actual job
-            viewed_at__range=(start_date, end_date)
-        ).values('viewed_at__date').annotate(
-            count=models.Count('id')
-        ).order_by('viewed_at__date')
+        daily_views = JobView.objects.filter(job=job, viewed_at__gte=start_date, viewed_at__lte=end_date)\
+            .annotate(date=TruncDay('viewed_at'))\
+            .values('date').annotate(count=Count('id')).order_by('date')
 
-        daily_applications = Application.objects.filter(
-            job=job, # Filter by the actual job
-            created_at__range=(start_date, end_date)
-        ).values('created_at__date').annotate(
-            count=models.Count('id')
-        ).order_by('created_at__date')
+        daily_applications = Application.objects.filter(job=job, created_at__gte=start_date, created_at__lte=end_date)\
+            .annotate(date=TruncDay('created_at'))\
+            .values('date').annotate(count=Count('id')).order_by('date')
 
-        return Response({
-            'views': list(daily_views),
-            'applications': list(daily_applications)
-        })
-
-    @extend_schema(summary="List Job Application Metrics")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(summary="Create Job Application Metrics")
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
-    @extend_schema(summary="Retrieve Job Application Metrics")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @extend_schema(summary="Update Job Application Metrics")
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @extend_schema(summary="Partially update Job Application Metrics")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @extend_schema(summary="Delete Job Application Metrics")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
-
+        return Response({'views': list(daily_views), 'applications': list(daily_applications)})
 
 @extend_schema(tags=['analytics'])
-class EmployerMetricsViewSet(viewsets.ModelViewSet):
+class EmployerMetricsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EmployerMetrics.objects.all()
     serializer_class = EmployerMetricsSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AnalyticsPermissions]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['employer']
+    ordering_fields = ['updated_at']
+    ordering = ['-updated_at']
 
     def get_queryset(self):
-        # Ensure that users can only see their own metrics
-        if self.request.user.is_authenticated:
-            return EmployerMetrics.objects.filter(employer=self.request.user)
-        return EmployerMetrics.objects.none() # Or raise PermissionDenied
+        user = self.request.user
+        if user.is_staff:
+            return super().get_queryset()
+        if user.role == 'employer':
+            return super().get_queryset().filter(employer=user)
+        return EmployerMetrics.objects.none()
 
-    @extend_schema(
-        summary="Get Employer Metrics Summary",
-        description="Provides a summary of an employer's performance metrics, including total jobs posted, applications received, interviews conducted, hires made, and the average time to hire.",
-        responses={
-            200: {
-                'type': 'object',
-                'properties': {
-                    'total_jobs': {'type': 'integer'},
-                    'total_applications': {'type': 'integer'},
-                    'total_interviews': {'type': 'integer'},
-                    'total_hires': {'type': 'integer'},
-                    'average_time_to_hire': {'type': 'number', 'format': 'float', 'nullable': True, 'description': 'Average days to hire. Null if no hires.'}
-                }
-            }
-        }
-    )
+    @extend_schema(summary="Get Employer Performance Metrics Summary")
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        employer = request.user # Assuming request.user is the employer
+        # This queryset is already filtered by get_queryset for employers
+        # If admin, allow to query for a specific employer_id (optional)
+        employer_user = request.user
+        if request.user.is_staff and request.query_params.get('employer_id'):
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                employer_user = User.objects.get(pk=request.query_params.get('employer_id'), role='employer')
+            except User.DoesNotExist:
+                return Response({"error": "Employer not found."}, status=status.HTTP_404_NOT_FOUND)
         
-        # Ensure an EmployerProfile exists for the user if your logic depends on it elsewhere,
-        # or if EmployerMetrics are directly linked to EmployerProfile instead of User.
-        # For this specific summary, direct use of request.user for filtering Job.created_by seems intended.
-
-        jobs = Job.objects.filter(created_by=employer)
-        applications = Application.objects.filter(job__in=jobs)
-        
-        total_jobs = jobs.count()
-        total_applications = applications.count()
-        total_interviews = applications.filter(status='interviewed').count()
-        
-        hired_applications = applications.filter(status='accepted')
-        total_hires = hired_applications.count()
-        
-        avg_time_to_hire = None
-        if hired_applications.exists():
-            total_days_to_hire = 0
-            valid_hires_for_avg = 0
-            for app in hired_applications:
-                # Ensure both dates are not None before subtraction
-                if app.created_at and app.updated_at: # Assuming updated_at reflects hire date for 'accepted' status
-                    time_diff = app.updated_at - app.created_at
-                    total_days_to_hire += time_diff.days
-                    valid_hires_for_avg +=1
-            if valid_hires_for_avg > 0:
-                avg_time_to_hire = total_days_to_hire / valid_hires_for_avg
-
+        metrics = EmployerMetrics.objects.filter(employer=employer_user).aggregate(
+            total_jobs_sum=Sum('total_jobs'),
+            total_applications_sum=Sum('total_applications'),
+            total_interviews_sum=Sum('total_interviews'),
+            total_hires_sum=Sum('total_hires'),
+            # For average_time_to_hire, it might be better to calculate it if it represents an overall average
+            # or fetch the latest record's value if it's a snapshot.
+            # avg_time_to_hire_avg=Avg('average_time_to_hire') 
+        )
+        latest_metric = EmployerMetrics.objects.filter(employer=employer_user).order_by('-updated_at').first()
 
         return Response({
-            'total_jobs': total_jobs,
-            'total_applications': total_applications,
-            'total_interviews': total_interviews,
-            'total_hires': total_hires,
-            'average_time_to_hire': avg_time_to_hire
+            'total_jobs': metrics['total_jobs_sum'] or 0,
+            'total_applications': metrics['total_applications_sum'] or 0,
+            'total_interviews': metrics['total_interviews_sum'] or 0,
+            'total_hires': metrics['total_hires_sum'] or 0,
+            'average_time_to_hire': latest_metric.average_time_to_hire if latest_metric else None
         })
-
-    @extend_schema(summary="List Employer Metrics")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(summary="Create Employer Metrics")
-    def create(self, request, *args, **kwargs):
-        # Typically, EmployerMetrics might be created/updated via signals or specific actions
-        # rather than direct POST, but providing schema for completeness.
-        return super().create(request, *args, **kwargs)
-
-    @extend_schema(summary="Retrieve Employer Metrics")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @extend_schema(summary="Update Employer Metrics")
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @extend_schema(summary="Partially update Employer Metrics")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @extend_schema(summary="Delete Employer Metrics")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)

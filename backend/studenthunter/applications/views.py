@@ -4,12 +4,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from django.db.models import F
 
 from applications.models import Application, ApplicationStatus
 from applications.serializers import ApplicationSerializer, ApplicationDetailSerializer
 from jobs.models import Job
 from core.permissions import IsOwnerOrEmployer
 from core.utils import ok, fail
+from analytics.models import JobApplicationMetrics
 
 @extend_schema(tags=['applications'])
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -38,9 +40,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         job = serializer.validated_data.get('job')
         if job.created_by == self.request.user:
             raise permissions.PermissionDenied("You cannot apply to your own job posting.")
-        serializer.save(applicant=self.request.user)
-        job.application_count += 1
-        job.save(update_fields=['application_count'])
+        application_instance = serializer.save(applicant=self.request.user)
+        Job.objects.filter(pk=job.pk).update(application_count=F('application_count') + 1)
+        
+        JobApplicationMetrics.objects.create(
+            job=job,
+            application=application_instance,
+            status=application_instance.status,
+        )
+        
         try:
             from admin_api.models import AdminNotification
             AdminNotification.objects.create(
@@ -85,9 +93,20 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         notes = request.data.get('notes', application.notes)
         if new_status not in ApplicationStatus.values:
             return fail('Invalid status', code=status.HTTP_400_BAD_REQUEST)
+        
+        old_status = application.status
         application.status = new_status
         application.notes = notes
         application.save()
+        
+        JobApplicationMetrics.objects.update_or_create(
+            application=application,
+            defaults={
+                'job': application.job,
+                'status': new_status,
+            }
+        )
+        
         return ok(self.get_serializer(application).data)
 
     @extend_schema(
