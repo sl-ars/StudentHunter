@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { NotificationProvider } from "@/contexts/notification-context"
 import Header from "@/components/Header"
 import Footer from "@/components/Footer"
+import { Toaster } from 'sonner'
 
 // Replace the current Inter font import with this more resilient approach
 // Add fallback fonts and increase the timeout
@@ -17,8 +18,6 @@ const inter = Inter({
   preload: true,
   weight: ["400", "500", "600", "700"],
   adjustFontFallback: true,
-  // Increase timeout for font loading
-  timeout: 5000,
 })
 
 export const metadata: Metadata = {
@@ -44,6 +43,11 @@ export default function RootLayout({
               <Header />
               <main className="flex-1">{children}</main>
               <Footer />
+              <Toaster
+                position="top-right"
+                richColors={true}
+                closeButton={true}
+              />
             </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>

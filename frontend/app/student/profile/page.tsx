@@ -31,7 +31,7 @@ import {
 import ProtectedRoute from "@/components/protected-route"
 import { Progress } from "@/components/ui/progress"
 import { userApi } from "@/lib/api/user"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import { ResumeUpload } from "@/components/resume-upload"
 import { getUserResumes, deleteResume } from "@/app/actions/resume-actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -45,7 +45,6 @@ import { ResumeList } from "@/components/resume-list"
 export default function StudentProfilePage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
   const [profileData, setProfileData] = useState<UserProfile | null>(null)
   const [initialProfileData, setInitialProfileData] = useState<UserProfile | null>(null)
   const [profileCompletion, setProfileCompletion] = useState(0)
@@ -59,6 +58,7 @@ export default function StudentProfilePage() {
   const [expandedEducation, setExpandedEducation] = useState<number | null>(null)
   const [missingFields, setMissingFields] = useState<string[]>([])
   const [skillsInputValue, setSkillsInputValue] = useState<string>("")
+  const [achievementsInputValue, setAchievementsInputValue] = useState<string>("")
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -73,9 +73,9 @@ export default function StudentProfilePage() {
         const profileDataFromApi = response.data
         setProfileData(profileDataFromApi)
         setInitialProfileData(profileDataFromApi)
-        // Initialize skillsInputValue here when profile data is fetched
         if (profileDataFromApi) {
-          setSkillsInputValue(profileDataFromApi.skills?.join(", ") || "");
+          setSkillsInputValue(profileDataFromApi.skills?.join(", ") || "")
+          setAchievementsInputValue(profileDataFromApi.achievements?.join("\n") || "")
         }
 
         // Calculate profile completion and identify missing fields
@@ -139,11 +139,7 @@ export default function StudentProfilePage() {
         setProfileCompletion((completedCount / requiredFields.length) * 100)
       } catch (error) {
         console.error("Error fetching profile:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load profile data",
-          variant: "destructive",
-        })
+        toast.error("Failed to load profile data")
       } finally {
         setLoading(false)
       }
@@ -179,57 +175,55 @@ export default function StudentProfilePage() {
       fetchProfile()
       fetchResumes()
     }
-  }, [user, router, isLoading, toast])
+  }, [user, router, isLoading])
 
   const handleInputChange = (field: keyof UserProfile, value: any) => {
     setProfileData((prev) => {
-      if (!prev) return null
-      return { ...prev, [field]: value }
-    })
-  }
+      if (!prev) return null;
+      const newProfileData = { ...prev, [field]: value };
+      return newProfileData;
+    });
+  };
 
   const handleProfileUpdate = async () => {
-    if (!profileData || !initialProfileData) return
+    if (!profileData || !initialProfileData) return;
+
+    console.log("[handleProfileUpdate] Current profileData.avatar:", profileData.avatar); // DEBUG
+    console.log("[handleProfileUpdate] Initial initialProfileData.avatar:", initialProfileData.avatar); // DEBUG
+    if ((profileData.avatar as any) instanceof File) {
+      console.log("[handleProfileUpdate] profileData.avatar is a File object.");
+    }
 
     try {
       setSaving(true)
 
       const changedData: Partial<UserProfile> = {}
-      // Compare profileData with initialProfileData to find changes
       for (const key in profileData) {
         if (Object.prototype.hasOwnProperty.call(profileData, key)) {
           const typedKey = key as keyof UserProfile
-          if (JSON.stringify(profileData[typedKey]) !== JSON.stringify(initialProfileData[typedKey])) {
-            // For arrays like skills, experience, education, achievements, always send the whole array if changed
-            // This is a simplification; a more granular diff could be implemented if needed
-            changedData[typedKey] = profileData[typedKey]
+          const valueFromProfile = profileData[typedKey];
+          const valueFromInitial = initialProfileData ? initialProfileData[typedKey] : undefined;
+
+          if (JSON.stringify(valueFromProfile) !== JSON.stringify(valueFromInitial)) {
+            changedData[typedKey] = valueFromProfile;
           }
         }
       }
       
       if (Object.keys(changedData).length === 0) {
-        toast({
-          title: "No Changes",
+        toast.info("No Changes", {
           description: "You haven\'t made any changes to your profile.",
         })
         setSaving(false)
         return
       }
 
-      await userApi.updateProfile(changedData as UserProfile) // Send only changed data
-      // After successful update, set initialProfileData to the new profileData
+      await userApi.updateProfile(changedData as UserProfile)
       setInitialProfileData(profileData) 
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      })
+      toast.success("Profile updated successfully")
     } catch (error) {
       console.error("Error updating profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update profile",
-        variant: "destructive",
-      })
+      toast.error("Failed to update profile")
     } finally {
       setSaving(false)
     }
@@ -241,10 +235,7 @@ export default function StudentProfilePage() {
       getUserResumes().then((result) => {
         if (result.success) {
           setResumes(result.data || [])
-          toast({
-            title: "Success",
-            description: "Resume uploaded successfully",
-          })
+          toast.success("Resume uploaded successfully")
 
           // Update profile completion if this is the first resume
           if (result.data.length === 1) {
@@ -268,10 +259,7 @@ export default function StudentProfilePage() {
       const result = await deleteResume(resumeId)
       if (result.success) {
         setResumes(resumes.filter((resume) => resume.id !== resumeId))
-        toast({
-          title: "Success",
-          description: "Resume deleted successfully",
-        })
+        toast.success("Resume deleted successfully")
 
         // Update profile completion if we now have no resumes
         if (resumes.length === 1) {
@@ -281,15 +269,12 @@ export default function StudentProfilePage() {
           })
         }
       } else {
-        throw new Error(result.message)
+        toast.error(result.message || "Failed to delete resume")
       }
     } catch (error) {
       console.error("Error deleting resume:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete resume",
-        variant: "destructive",
-      })
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete resume";
+      toast.error(errorMessage)
     } finally {
       setDeletingResume(null)
     }
@@ -425,7 +410,11 @@ export default function StudentProfilePage() {
                   <CardContent className="-mt-16 relative">
                     <AvatarUpload
                       currentAvatar={profileData?.avatar}
-                      onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
+                      onAvatarChange={(newAvatarUrl) => {
+                        console.log("[StudentProfilePage] AvatarUpload returned new URL:", newAvatarUrl);
+                        setProfileData(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
+                        setInitialProfileData(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
+                      }}
                       role={user?.role}
                     />
                     <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
@@ -630,20 +619,14 @@ export default function StudentProfilePage() {
                           <Textarea
                             id="achievements"
                             placeholder="List your key achievements and awards (one per line)"
-                            value={profileData?.achievements?.map((a) => a.description).join("\n") || ""}
+                            value={achievementsInputValue}
                             onChange={(e) => {
-                              const achievementsArray = e.target.value
+                              setAchievementsInputValue(e.target.value);
+                              const newAchievements = e.target.value
                                 .split("\n")
-                                .map((achievement) => achievement.trim())
-                                .filter(Boolean)
-                                .map((description, index) => ({
-                                  id: `achievement-${index}`,
-                                  title: description.split(" ").slice(0, 3).join(" "),
-                                  description,
-                                  points: 0,
-                                  icon: "award",
-                                }))
-                              handleInputChange("achievements", achievementsArray)
+                                .map(s => s.trim())
+                                .filter(s => s);
+                              setProfileData(prev => (prev ? { ...prev, achievements: newAchievements } : null));
                             }}
                             className="min-h-[120px]"
                           />

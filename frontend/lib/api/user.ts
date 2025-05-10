@@ -1,6 +1,6 @@
 import apiClient from "./client"
 import type { ApiResponse } from "./client"
-import type { User, UserProfile, Education, Experience } from "@/lib/types"
+import type { User, UserProfile, Education, Experience, AnyFullProfile } from "@/lib/types"
 import { USER_ROLES, UserRole } from "@/lib/constants/roles"
 
 interface AuthResponse {
@@ -121,9 +121,9 @@ export const userApi = {
     }
   },
 
-  getMyProfile: async (): Promise<ApiResponse<UserProfile>> => {
+  getMyProfile: async (): Promise<ApiResponse<AnyFullProfile>> => {
       try {
-        const response = await apiClient.get<ApiResponse<UserProfile>>("/user/profile/me/")
+        const response = await apiClient.get<ApiResponse<AnyFullProfile>>("/user/profile/me/")
         return response.data
       } catch (error: any) {
         return {
@@ -148,42 +148,50 @@ export const userApi = {
   },
 
   updateProfile: async (
-      data: Partial<UserProfile> & { avatar?: File | string | null }
-    ): Promise<ApiResponse<UserProfile>> => {
+      data: Partial<AnyFullProfile> & { avatar?: File | string | null }
+    ): Promise<ApiResponse<AnyFullProfile>> => {
       try {
         const formData = new FormData();
 
-        Object.keys(data).forEach(key => {
-          const typedKey = key as keyof typeof data;
-          const value = data[typedKey];
-          const stringKey = String(key); // Ensure the key is a string for FormData
+        Object.keys(data).forEach(keyStr => {
+          const value = (data as any)[keyStr];
 
-          if (typedKey === 'avatar') {
+          if (value === undefined || value === null) {
+            return;
+          }
+
+          if (keyStr === 'avatar') {
             if (value instanceof File) {
-              formData.append(stringKey, value);
+              formData.append(keyStr, value);
+            } else if (typeof value === 'string') { 
+              formData.append(keyStr, value);
             }
-            // If avatar is a string (URL) or null, we don't append it for FormData.
-          } else if (value !== undefined && value !== null) {
-            // Handle non-avatar fields
-            if (Array.isArray(value) || 
-                (typeof value === 'object' && value !== null && !((value as any) instanceof File)) ) {
-              // If value is an object (and not null) and not a File, or if it's an array, stringify it.
-              formData.append(stringKey, JSON.stringify(value));
-            } else if (!(value instanceof File)) {
-              // Primitives (string, number, boolean) should not be Files. Stringify them.
-              // This also handles if `value` was somehow a File and didn't meet the condition above.
-              formData.append(stringKey, String(value));
-            } 
-            // If value is a File and made it here (i.e., it wasn't an object or array that got stringified),
-            // it means it's a non-avatar File that we are choosing to stringify (becomes "[object File]") or skip.
-            // The `else if (!(value instanceof File))` will stringify it if it's not a file.
-            // If it *is* a file, it falls through and is currently skipped. This is probably safest for non-avatar files.
+          } else if (
+            (keyStr === 'skills' || 
+             keyStr === 'achievements' || 
+             keyStr === 'programs_offered' || 
+             keyStr === 'company_skills_tags') && 
+            Array.isArray(value)
+          ) {
+            if (value.every(item => typeof item === 'string')) {
+              (value as string[]).forEach(item => formData.append(keyStr, item));
+            } else {
+              formData.append(keyStr, JSON.stringify(value));
+            }
+          } else if (Array.isArray(value)) {
+            formData.append(keyStr, JSON.stringify(value));
+          } else if (typeof value === 'object' && value !== null) {
+            if (value instanceof File) {
+              console.warn(`Skipping unexpected File in field: ${keyStr}. Ensure File objects are handled explicitly by keyStr.`);
+            } else {
+              formData.append(keyStr, JSON.stringify(value));
+            }
+          } else {
+            formData.append(keyStr, String(value));
           }
         });
         
-        // No explicit Content-Type header needed when sending FormData, 
-        // the browser/client will set it to multipart/form-data with the correct boundary.
-        const response = await apiClient.patch<ApiResponse<UserProfile>>("/user/profile/me/", formData);
+        const response = await apiClient.patch<ApiResponse<AnyFullProfile>>("/user/profile/me/", formData);
         return response.data;
       } catch (error: any) {
         return {
@@ -353,5 +361,34 @@ export const userApi = {
       `/api/${role}/profile/experience/${experienceId}/`
     )
     return response.data.data
+  },
+
+  // Method for AvatarUpload component to directly upload an avatar
+  uploadAvatar: async (
+    // role: UserRole, // Role might not be strictly necessary if endpoint is /user/profile/me/
+    formData: FormData // Expects FormData with 'avatar' field
+  ): Promise<ApiResponse<{ avatar: string }>> => {
+    try {
+      const response = await apiClient.patch<ApiResponse<{ avatar: string }>>(
+        "/user/profile/me/", 
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      // Assuming the backend returns the new avatar URL in response.data.data.avatar
+      // or response.data.avatar if the structure is flatter for this specific endpoint.
+      // For consistency with getMyProfile which is likely UserProfile, let's assume it's in response.data.avatar
+      // The AvatarUpload component expects response.data.avatar
+      return response.data; 
+    } catch (error: any) {
+      return {
+        status: "error",
+        message: error.message || "Failed to upload avatar",
+        data: { avatar: "" }, 
+      };
+    }
   },
 }

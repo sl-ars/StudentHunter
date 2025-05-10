@@ -1,4 +1,8 @@
 from django.db import models
+from django.db.models import Q
+
+from core.storage import PublicAssetStorage
+
 
 class Company(models.Model):
     name = models.CharField(max_length=255)
@@ -8,12 +12,13 @@ class Company(models.Model):
     industry = models.CharField(max_length=255)
     size = models.CharField(max_length=50, blank=True, null=True)
     founded = models.CharField(max_length=4, blank=True, null=True)
-    logo = models.ImageField(upload_to='company_logos/', blank=True, null=True)
-    cover_image = models.ImageField(upload_to='company_cover_images/', blank=True, null=True)
+    logo = models.ImageField(storage=PublicAssetStorage(), upload_to='company_logos/', blank=True, null=True)
+    cover_image = models.ImageField(storage=PublicAssetStorage(), upload_to='company_cover_images/', blank=True, null=True)
     verified = models.BooleanField(default=False)
     featured = models.BooleanField(default=False)
     culture = models.TextField(blank=True, null=True)
-    benefits = models.JSONField(blank=True, null=True)  
+    benefits = models.JSONField(blank=True, null=True)
+    highlights = models.JSONField(blank=True, null=True)
     social_links = models.JSONField(blank=True, null=True)
 
     def __str__(self):
@@ -77,3 +82,10 @@ class Company(models.Model):
     def company_id(self):
         """Return company id string for API consistency"""
         return str(self.id) if self.id else ""
+
+    def get_similar_companies(self, limit=3):
+        return Company.objects.filter(
+            Q(industry=self.industry) &
+            Q(location=self.location) &
+            ~Q(id=self.id)
+        )[:limit]
