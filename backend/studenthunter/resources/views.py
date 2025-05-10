@@ -23,7 +23,7 @@ class ResourceViewSet(viewsets.ModelViewSet):
         'is_demo': ['exact'],
         'author__id': ['exact'],
     }
-    search_fields = ['title', 'description', 'category', 'tags', 'author__name']
+    search_fields = ['title']
     ordering_fields = ['published_at', 'views', 'downloads', 'title', 'category', 'type', 'estimated_time']
     ordering = ['-published_at']
 

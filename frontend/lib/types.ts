@@ -1,6 +1,5 @@
 export type UserRole = "student" | "employer" | "admin" | "campus";
 
-// Тип пользователя
 export interface User {
   id: string;
   email: string;
@@ -15,7 +14,6 @@ export interface User {
   company_id?: string;
 }
 
-// Типы для вакансий
 export interface Job {
   id: string;
   title: string;
@@ -44,7 +42,6 @@ export interface Job {
   is_applied?: boolean;
 }
 
-// Типы для заявок на вакансии
 export interface Application {
   id: string;
   job: Job | string;
@@ -74,8 +71,6 @@ export interface Application {
   interview_date: string | null;
   notes: string;
 }
-
-// Типы для административных функций
 export interface ModerationLog {
   id: string;
   admin: string;
@@ -164,72 +159,113 @@ export interface Experience {
   current?: boolean;
 }
 
-export interface BaseProfileData { // Общие редактируемые поля для всех профилей
+export interface BaseProfileData {
   phone?: string;
   location?: string;
-  description?: string; // Общее описание (bio для студента, company_desc для компании и т.д.)
+  description?: string; 
 }
 
-// Новый тип для профиля студента, используется в объединенной странице
+
 export interface StudentProfile extends User, BaseProfileData {
-  // `description` из BaseProfileData будет использоваться как bio
   skills?: string[]; 
-  achievements?: string[]; // Массив строк для ввода, на бэке может быть ListField(child=CharField)
+  achievements?: string[]; 
   education?: Education[];
   experience?: Experience[];
-  // Статистика (profileCompletion, missingFields) вычисляется на фронте для студента
 }
 
-// Новый тип для профиля работодателя
 export interface EmployerProfile extends User, BaseProfileData {
-  company_name?: string; // Если отличается от user.name. Если user.name это и есть название компании, то это поле не нужно.
+  company_name?: string; 
   company_website?: string;
-  // `description` из BaseProfileData будет описанием компании
-  company_skills_tags?: string[]; // Ключевые навыки/теги компании
-  // Статистика с бэка (эти поля только для чтения на фронте)
+ 
+  company_skills_tags?: string[]; 
   totalJobsPosted?: number;
   activeApplications?: number;
   totalHires?: number;
 }
 
-// Новый тип для профиля кампуса
+
 export interface CampusProfile extends User, BaseProfileData {
-  // `university_name` - если user.name это ФИО представителя, а не название кампуса
-  // `description` из BaseProfileData будет описанием кампуса
   programs_offered?: string[];
-  // Статистика с бэка
   totalStudents?: number;
   activePrograms?: number;
   partnerCompanies?: number;
 }
 
-// Новый тип для профиля админа
 export interface AdminProfile extends User, BaseProfileData {
-  // `description` из BaseProfileData - личное описание админа, если нужно
   system_name?: string;
   system_description?: string;
-  // Статистика с бэка
   totalUsers?: number;
   activeCampuses?: number;
   totalJobs?: number;
 }
 
-// Объединенный тип, который будет использоваться для состояния profileData в UnifiedProfilePage
 export type AnyFullProfile = StudentProfile | EmployerProfile | CampusProfile | AdminProfile;
 
-
-// --- Существующий UserProfile (для студента) --- 
-// Оставляем его пока что, так как он может использоваться в других местах (например, userApi.updateProfile)
-// Постепенно можно будет его заменить или убедиться, что StudentProfile совместим.
-// Если StudentProfile полностью заменяет его для новой страницы, то в userApi.updateProfile 
-// нужно будет принимать Partial<AnyFullProfile>.
 export interface UserProfile extends User { 
-  bio?: string; // Это будет соответствовать `description` в StudentProfile/BaseProfileData
-  phone?: string; // Есть в BaseProfileData
-  location?: string; // Есть в BaseProfileData
-  skills?: string[]; // Есть в StudentProfile
-  education?: Education[]; // Есть в StudentProfile
-  experience?: Experience[]; // Есть в StudentProfile
-  achievements?: Achievement[]; // ВАЖНО: здесь Achievement[], а в StudentProfile мы сделали string[] для простоты ввода
-                               // Это потребует согласования с бэкендом или конвертации на фронте если мы используем StudentProfile.achievements: string[]
+  bio?: string;
+  phone?: string;
+  location?: string; 
+  skills?: string[];
+  education?: Education[];
+  experience?: Experience[]; 
+  achievements?: Achievement[]
+} 
+
+export interface AuthorDetails {
+  id: string;
+  email: string;
+  name?: string;
+  avatar?: string;
+}
+
+export interface ResourceFile {
+  id: string;
+  resource: string;
+  title?: string;
+  file: string; 
+  file_url?: string;
+  file_type?: string; 
+  created_at: string; 
+  created_by?: string; 
+  created_by_name?: string;
+  open_in_new_tab?: boolean;
+  size?: number; 
+}
+
+export interface Resource {
+  id: string;
+  title: string;
+  description?: string;
+  type: string; 
+  type_display?: string; 
+  category: string; 
+  category_display?: string; 
+  tags?: string[];
+  content?: string; 
+  author?: AuthorDetails;
+  author_details?: AuthorDetails;
+  created_by?: AuthorDetails; 
+  created_at: string;
+  updated_at: string;
+  is_public?: boolean;
+  is_featured?: boolean;
+  estimated_time?: string;
+  estimated_time_display?: string;
+  files?: ResourceFile[];
+  file_count?: number;
+  is_demo?: boolean; 
+  fileUrl?: string; 
+}
+
+export interface ResourceListResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Resource[];
+}
+
+export interface ResourceDownloadResponse {
+  file_url: string; 
+  filename?: string; 
+  open_in_new_tab?: boolean;
 } 
