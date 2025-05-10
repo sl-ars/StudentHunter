@@ -19,7 +19,7 @@ class Resource(models.Model):
     description = models.TextField()
     type = models.CharField(max_length=50, choices=RESOURCE_TYPES)
     content = models.TextField(blank=True)
-    author = models.CharField(max_length=255)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='authored_resources_content')
     published_at = models.DateTimeField(auto_now_add=True)
     estimated_time = models.CharField(max_length=50)
     category = models.CharField(max_length=100)
@@ -29,6 +29,7 @@ class Resource(models.Model):
     downloads = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_resources_entries')
 
     class Meta:
         ordering = ['-published_at']
@@ -42,9 +43,10 @@ class ResourceFile(models.Model):
     title = models.CharField(max_length=255)
     file = models.FileField(upload_to='resources/')
     file_type = models.CharField(max_length=50)
-    size = models.CharField(max_length=50)
+    size = models.BigIntegerField(default=0, help_text="File size in bytes")
     open_in_new_tab = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_resource_files')
 
     def __str__(self):
         return f"{self.title} - {self.resource.title}"
