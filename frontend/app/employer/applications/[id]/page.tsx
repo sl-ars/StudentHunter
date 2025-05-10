@@ -122,14 +122,12 @@ export default function ApplicationDetailsPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2 flex items-center"><UserCircle className="mr-2 h-5 w-5 text-primary" />Applicant Profile</h3>
-                {/* Detailed profile fields (location, university, education, experience, skills) removed as per user request. */}
-                {/* The fallback message below will display if these details are not available in the data. */}
-                {!applicantUser?.location && !applicantUser?.university &&
-                 (!application.applicant_profile || 
-                 (!application.applicant_profile.education && 
-                  !application.applicant_profile.experience && 
-                  (!application.applicant_profile.skills || application.applicant_profile.skills.length === 0))) && (
-                  <p className="text-gray-500 italic">Detailed profile information (education, experience, skills, location, university) not provided or not applicable.</p>
+                {(applicantUser?.id || (typeof application.applicant === 'string' && application.applicant)) && (
+                  <Link href={`/profile/${applicantUser?.id || application.applicant}`} passHref target="_blank">
+                    <Button variant="outline" size="sm" className="mt-2">
+                      View Public Profile <ExternalLink className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 )}
               </div>
             </div>

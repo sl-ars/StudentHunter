@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 import uuid
 
+from core.storage import PublicAssetStorage
+
 User = get_user_model()
 
 class Resource(models.Model):
@@ -41,7 +43,7 @@ class ResourceFile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='files')
     title = models.CharField(max_length=255)
-    file = models.FileField(upload_to='resources/')
+    file = models.FileField(storage=PublicAssetStorage(), upload_to='resources/')
     file_type = models.CharField(max_length=50)
     size = models.BigIntegerField(default=0, help_text="File size in bytes")
     open_in_new_tab = models.BooleanField(default=False)
