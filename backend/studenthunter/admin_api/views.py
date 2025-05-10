@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, status, filters
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action, permission_classes as drf_permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
@@ -12,7 +12,7 @@ from admin_api.models import ModerationLog, AdminNotification, AdminDashboardSet
 from admin_api.serializers import (
     ModerationLogSerializer, AdminNotificationSerializer, AdminDashboardSettingSerializer,
     UserAdminSerializer, JobAdminSerializer, CompanyAdminSerializer, 
-    ApplicationAdminSerializer, AdminDashboardStatsSerializer
+    ApplicationAdminSerializer, AdminDashboardStatsSerializer, BulkUserFileUploadSerializer
 )
 from jobs.models import Job
 from companies.models import Company 
@@ -21,6 +21,10 @@ from django.db.models import Count, Q
 from django.contrib.contenttypes.models import ContentType
 from admin_api.models import SystemSettings
 from admin_api.serializers import SystemSettingsSerializer
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+import pandas as pd
+import numpy as np
+from users.models import StudentProfile, EmployerProfile, CampusProfile
 
 User = get_user_model()
 
@@ -31,14 +35,23 @@ class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and request.user.is_staff
 
+class CanBulkRegisterUsers(permissions.BasePermission):
+    """
+    Allows access to bulk user registration for Admins or Campus users.
+    Campus users can only register students.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_staff or request.user.role == 'campus'
+
 @extend_schema(tags=['admin'])
 class AdminUserViewSet(viewsets.ModelViewSet):
     """API для управления пользователями в административной панели."""
     queryset = User.objects.all()
     serializer_class = UserAdminSerializer
-    # Temporarily disable permission checks for debugging
-    # permission_classes = [IsAdminUser]
     permission_classes = []
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['role', 'is_active']
     search_fields = ['email', 'name']
@@ -164,94 +177,148 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 'message': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=False, methods=['post'])
+    @extend_schema(
+        summary="Bulk user registration from XLSX/CSV file",
+        request=BulkUserFileUploadSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT
+        }
+    )
+    @action(detail=False, methods=['post'], permission_classes=[CanBulkRegisterUsers], parser_classes=[MultiPartParser])
     def bulk(self, request):
-        """Массовое создание пользователей."""
-        users_data = request.data.get('users', [])
-        
-        if not users_data:
+        """Массовое создание пользователей из файла XLSX или CSV."""
+        file_obj = request.FILES.get('file')
+
+        if not file_obj:
             return Response({
                 'status': 'error',
-                'message': 'No user data provided'
+                'message': 'No file provided'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         results = {
-            'success': 0,
-            'failed': 0,
+            'success_count': 0,
+            'failed_count': 0,
             'details': []
         }
         
-        for user_data in users_data:
-            try:
-                # Извлекаем необходимые данные
-                email = user_data.get('email')
-                name = user_data.get('name', '')
-                password = user_data.get('password', self.generate_random_password())
-                role = user_data.get('role', 'student')
-                
-                if not email:
-                    raise ValueError('Email is required')
-                
-                # Создаем пользователя
-                user = User.objects.create_user(
-                    email=email,
-                    password=password,
-                    name=name,
-                    role=role,
-                    is_active=True
-                )
-                
-                # Дополнительные данные в зависимости от роли
-                if role == 'student' and user_data.get('university'):
-                    # Добавление университета для студента
-                    pass
-                    
-                if role == 'employer':
-                    # Обработка данных компании для работодателя
-                    if user_data.get('company_id'):
-                        # Если передан ID компании, сохраняем его и название компании
-                        user.company_id = user_data.get('company_id')
-                        if user_data.get('company'):
-                            user.company = user_data.get('company')
-                        else:
-                            # Если название компании не передано, пытаемся получить его из базы
-                            try:
-                                from companies.models import Company
-                                company = Company.objects.get(id=user_data.get('company_id'))
-                                user.company = company.name
-                            except Exception as e:
-                                print(f"Error getting company name: {e}")
-                        user.save()
-                    elif user_data.get('company'):
-                        # Если передано только название компании
-                        user.company = user_data.get('company')
-                        user.save()
-                
-                results['success'] += 1
-                results['details'].append({
-                    'email': email,
-                    'status': 'success',
-                    'message': 'User created successfully'
-                })
-                
-            except Exception as e:
-                results['failed'] += 1
-                results['details'].append({
-                    'email': user_data.get('email', 'Unknown'),
+        allowed_roles_for_campus = ['student']
+        # Define expected columns in the file. Adjust as necessary.
+        # It's good practice to provide a template file for users.
+        expected_columns = ['email', 'password', 'name', 'role'] # Minimal example
+        # Optional columns: 'phone', 'university', 'department', 'position' (for campus), 'company_name' (for employer)
+
+        try:
+            if file_obj.name.endswith('.csv'):
+                df = pd.read_csv(file_obj)
+            elif file_obj.name.endswith('.xlsx'):
+                df = pd.read_excel(file_obj, engine='openpyxl')
+            else:
+                return Response({
                     'status': 'error',
-                    'message': str(e)
-                })
-        
-        # Логирование действия
-        ModerationLog.objects.create(
-            admin=request.user,
-            action='bulk_create',
-            content_type=ContentType.objects.get_for_model(User),
-            object_id=request.user.id,
-            notes=f"Bulk user creation: {results['success']} succeeded, {results['failed']} failed"
-        )
-        
-        return Response(results)
+                    'message': 'Unsupported file type. Please upload a CSV or XLSX file.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Replace NaN values with None for JSON compatibility
+            df = df.replace({np.nan: None})
+
+            # Normalize column names (e.g., lower case, strip spaces)
+            df.columns = [col.lower().strip() for col in df.columns]
+
+            # Check for required columns
+            missing_cols = [col for col in expected_columns if col not in df.columns]
+            if missing_cols:
+                return Response({
+                    'status': 'error',
+                    'message': f'Missing required columns in file: {", ".join(missing_cols)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            for index, row in df.iterrows():
+                email = row.get('email')
+                password = row.get('password')
+                name = row.get('name', '')
+                role = row.get('role', 'student').lower()
+                # Optional fields
+                phone = row.get('phone')
+                university = row.get('university') # For student/campus
+                department = row.get('department') # For campus
+                position = row.get('position') # For campus
+                # company_name = row.get('company_name') # For employer
+
+                if not email or not password:
+                    results['failed_count'] += 1
+                    results['details'].append({'email': email, 'status': 'failed', 'reason': 'Missing email or password'})
+                    continue
+                
+                # Role validation by uploader
+                if request.user.role == 'campus' and role not in allowed_roles_for_campus:
+                    results['failed_count'] += 1
+                    results['details'].append({'email': email, 'status': 'failed', 'reason': f'Campus users can only register students, attempted role: {role}'})
+                    continue
+                
+                # Validate role value itself (must be one of the system-defined roles)
+                # Assuming User.ROLE_CHOICES or similar exists on your User model
+                # For simplicity, let's assume roles are 'student', 'employer', 'campus', 'admin'
+                valid_system_roles = [r[0] for r in User.ROLE_CHOICES] if hasattr(User, 'ROLE_CHOICES') else ['student', 'employer', 'campus', 'admin']
+                if role not in valid_system_roles:
+                    results['failed_count'] += 1
+                    results['details'].append({'email': email, 'status': 'failed', 'reason': f'Invalid role specified: {role}'})
+                    continue
+
+                try:
+                    if User.objects.filter(email=email).exists():
+                        results['failed_count'] += 1
+                        results['details'].append({'email': email, 'status': 'failed', 'reason': 'User with this email already exists'})
+                        continue
+
+                    user = User.objects.create_user(
+                        email=email,
+                        password=password,
+                        name=name,
+                        role=role,
+                        phone=phone,
+                        is_active=True # Or based on a column in the file
+                    )
+                    
+                    # Create profile based on role
+                    if role == 'student':
+                        StudentProfile.objects.create(user=user, university=university)
+                    elif role == 'employer':
+                        # company_name might be from the file, or a default/placeholder
+                        EmployerProfile.objects.create(user=user, company_name=row.get('company_name', 'Default Company'))
+                    elif role == 'campus':
+                        CampusProfile.objects.create(user=user, university=university, department=department, position=position)
+                    
+                    results['success_count'] += 1
+                    results['details'].append({'email': email, 'status': 'success'})
+                
+                except Exception as e:
+                    results['failed_count'] += 1
+                    results['details'].append({'email': email, 'status': 'failed', 'reason': str(e)})
+            
+        except pd.errors.EmptyDataError:
+             return Response({'status': 'error', 'message': 'The uploaded file is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # General error during file processing
+            return Response({
+                'status': 'error',
+                'message': f'Error processing file: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Log moderation action
+        try:
+            ModerationLog.objects.create(
+                admin=request.user,
+                action='bulk_user_upload',
+                content_type=ContentType.objects.get_for_model(User),
+                object_id=request.user.id, # Or a more relevant object if applicable
+                notes=f"Bulk user upload: {results['success_count']} succeeded, {results['failed_count']} failed. File: {file_obj.name}"
+            )
+        except Exception: # Catch all for logging to not break the main flow
+            pass 
+
+        return Response(results, status=status.HTTP_200_OK)
     
     def generate_random_password(self, length=12):
         """Генерация случайного безопасного пароля."""
@@ -349,8 +416,6 @@ class AdminCompanyViewSet(viewsets.ModelViewSet):
     """API для управления компаниями в административной панели."""
     queryset = Company.objects.all()
     serializer_class = CompanyAdminSerializer
-    # Temporarily disable permission checks for debugging
-    # permission_classes = [IsAdminUser]
     permission_classes = []
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['verified', 'featured', 'industry']
@@ -497,8 +562,6 @@ class AdminDashboardStatsView(APIView):
 @extend_schema(tags=['admin'])
 class AdminAnalyticsView(APIView):
     """API для получения детальной аналитики для административной панели."""
-    # Временно отключаем проверку прав доступа для тестирования
-    # permission_classes = [IsAdminUser]
     permission_classes = []
     
     def get(self, request):
@@ -706,13 +769,11 @@ class AdminDashboardSettingViewSet(viewsets.ModelViewSet):
 @extend_schema(tags=['admin'])
 class SystemSettingsView(APIView):
     """API для получения и обновления глобальных настроек системы."""
-    # Временно отключаем проверку прав доступа для тестирования
-    # permission_classes = [IsAdminUser]
     permission_classes = []
     
     def get(self, request):
         """Получить текущие системные настройки."""
-        settings = SystemSettings.get_settings()
+        settings, _ = SystemSettings.objects.get_or_create(id=1)
         serializer = SystemSettingsSerializer(settings)
         
         # Выводим данные в консоль для отладки
@@ -726,8 +787,8 @@ class SystemSettingsView(APIView):
     
     def put(self, request):
         """Обновить системные настройки."""
-        settings = SystemSettings.get_settings()
-        serializer = SystemSettingsSerializer(settings, data=request.data, partial=True)
+        settings, _ = SystemSettings.objects.get_or_create(id=1)
+        serializer = SystemSettingsSerializer(settings, data=request.data)
         
         if serializer.is_valid():
             serializer.save()

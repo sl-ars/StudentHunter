@@ -80,4 +80,15 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSettings
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at'] 
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+class BulkUserFileUploadSerializer(serializers.Serializer):
+    """
+    Serializer for file upload in bulk user registration.
+    Used for Swagger documentation to show a file upload field.
+    """
+    file = serializers.FileField(help_text="XLSX or CSV file containing user data for bulk registration.")
+
+    class Meta:
+        # No model needed, just for field definition for Swagger
+        pass 
