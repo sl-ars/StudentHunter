@@ -243,6 +243,12 @@ class StudentProfileSerializer(BaseProfileSerializer):
         allow_empty=True,
         default=list
     )
+    achievements = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        default=list
+    )
     bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     resume = serializers.CharField(read_only=True, required=False, source='get_resume_display', allow_null=True)
 
@@ -251,7 +257,7 @@ class StudentProfileSerializer(BaseProfileSerializer):
         fields = [
             "id", "name", "email", "role", "avatar", "phone", "location",
             "university", "company", "created_at", "last_login", "is_active",
-            "bio", "skills", "resume", "education", "experience"
+            "bio", "skills", "resume", "education", "experience", "achievements"
         ]
         read_only_fields = ["id", "email", "role", "created_at", "last_login", "is_active"]
 

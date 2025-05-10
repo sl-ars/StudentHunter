@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+
+from core.storage import PublicAssetStorage
 from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
@@ -24,7 +26,7 @@ class CustomUser(AbstractUser):
     name = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     phone = models.CharField(max_length=20, blank=True, null=True)
-    avatar = models.ImageField(storage=AvatarStorage(), upload_to="avatars/", blank=True, null=True, help_text="Profile picture")
+    avatar = models.ImageField(storage=PublicAssetStorage(), upload_to="avatars/", blank=True, null=True, help_text="Profile picture")
     university = models.CharField(max_length=255, blank=True, null=True, default="")
     company = models.CharField(max_length=255, blank=True, null=True, default="")
     company_id = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -43,7 +45,8 @@ class CustomUser(AbstractUser):
 class StudentProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="student_profile")
     bio = models.TextField(blank=True, null=True)
-    skills = models.JSONField(blank=True, null=True)
+    skills = models.JSONField(blank=True, null=True, default=list)
+    achievements = models.JSONField(blank=True, null=True, default=list)
     resume = models.FileField(upload_to="resumes/", null=True, blank=True)
 
     def __str__(self):
