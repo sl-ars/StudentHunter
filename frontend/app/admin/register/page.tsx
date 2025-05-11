@@ -25,7 +25,6 @@ import { parseCSV, parseExcel } from "@/lib/utils/file-parser"
 import { isMockEnabled } from "@/lib/utils/config"
 import { mockAdminCompanies } from "@/lib/mock-data/admin"
 
-// Form validation schema
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -40,7 +39,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-// Company interface for type safety
 interface AdminCompany {
   id: string;
   name: string;
@@ -88,19 +86,16 @@ export default function AdminRegisterPage() {
   const watchRole = watch("role")
   const watchPassword = watch("password")
 
-  // Handle role selection
   const handleRoleChange = (value: string) => {
     setValue("role", value)
     setSelectedRole(value)
   }
 
-  // Generate random password
   const handleGeneratePassword = () => {
     const password = generateRandomPassword(12)
     setValue("password", password)
   }
 
-  // Toggle auto password generation
   const handleToggleAutoPassword = (checked: boolean) => {
     setUseAutoPassword(checked)
     if (checked) {
@@ -108,23 +103,21 @@ export default function AdminRegisterPage() {
     }
   }
 
-  // Fetch companies when role is employer
   useEffect(() => {
     if (selectedRole === "employer") {
       const fetchCompanies = async () => {
         setLoadingCompanies(true);
         try {
           if (isMockEnabled()) {
-            // Use mock data
             setCompanies(mockAdminCompanies.map((company: AdminCompany) => ({
               id: company.id,
               name: company.name,
               industry: company.industry
             })));
           } else {
-            // Fetch real companies from API
+
             const response = await adminApi.getCompanies({
-              limit: 100 // Get up to 100 companies
+              limit: 100 
             });
             if (response.status === "success" && Array.isArray(response.data)) {
               setCompanies(response.data.map((company: AdminCompany) => ({
@@ -165,7 +158,6 @@ export default function AdminRegisterPage() {
         return;
       }
       
-      // Validate company selection for employers
       if (data.role === "employer" && !data.company_id) {
         toast({
           title: "Validation Error",
@@ -230,7 +222,6 @@ export default function AdminRegisterPage() {
     try {
       let users: any[] = []
 
-      // Parse file based on extension
       if (file.name.endsWith(".csv")) {
         users = await parseCSV(file)
       } else if (file.name.endsWith(".xlsx")) {
@@ -243,21 +234,19 @@ export default function AdminRegisterPage() {
         throw new Error("No valid user data found in file")
       }
 
-      // Process users
-      const results = await adminApi.bulkCreateUsers(users)
+      const results = await adminApi.bulkCreateUsers(file)
 
       setBulkResults({
-        success: results.data.success,
-        failed: results.data.failed,
+        success: results.data.success_count,
+        failed: results.data.failed_count,
+        details: results.data.details || []
       })
 
       toast({
-        title: "Bulk Import Complete",
-        description: `Successfully created ${results.data.success} users. ${results.data.failed} failed.`,
-        variant: results.data.failed > 0 ? "default" : "default",
+        title: "Bulk Upload Processed",
+        description: `${results.data.success_count} users created, ${results.data.failed_count} failed.`,
       })
 
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -272,6 +261,15 @@ export default function AdminRegisterPage() {
       setProcessingFile(false)
     }
   }
+
+  const handleDownloadTemplate = () => {
+    const link = document.createElement('a');
+    link.href = '/templates/bulk_user_template.csv';
+    link.setAttribute('download', 'bulk_user_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <ProtectedRoute roles="admin">
@@ -406,7 +404,6 @@ export default function AdminRegisterPage() {
                           </Label>
                           <div className="flex space-x-2">
                             <div className="flex-1">
-                              {/* Используем Controller с компонентом Select (способ 1) */}
                               {false && (
                                 <Controller
                                   name="company_id"
@@ -544,7 +541,7 @@ export default function AdminRegisterPage() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-4">
-                      File must include columns: first_name, last_name, email, role (optional: university, company)
+                      File must include columns: email, password, name, role (optional: university, department, position, company_name, phone)
                     </p>
                   </div>
 
@@ -578,37 +575,50 @@ export default function AdminRegisterPage() {
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="border-b">
-                            <th className="py-2 px-3 text-left">first_name</th>
-                            <th className="py-2 px-3 text-left">last_name</th>
                             <th className="py-2 px-3 text-left">email</th>
+                            <th className="py-2 px-3 text-left">password</th>
+                            <th className="py-2 px-3 text-left">name</th>
                             <th className="py-2 px-3 text-left">role</th>
                             <th className="py-2 px-3 text-left">university</th>
-                            <th className="py-2 px-3 text-left">company</th>
+                            <th className="py-2 px-3 text-left">department</th>
+                            <th className="py-2 px-3 text-left">position</th>
+                            <th className="py-2 px-3 text-left">company_name</th>
+                            <th className="py-2 px-3 text-left">phone</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr>
-                            <td className="py-2 px-3">John</td>
-                            <td className="py-2 px-3">Doe</td>
-                            <td className="py-2 px-3">john@example.com</td>
+                            <td className="py-2 px-3">john.doe@example.com</td>
+                            <td className="py-2 px-3">Pass123!</td>
+                            <td className="py-2 px-3">John Doe</td>
                             <td className="py-2 px-3">student</td>
-                            <td className="py-2 px-3">State University</td>
-                            <td className="py-2 px-3"></td>
+                            <td className="py-2 px-3">Example University</td>
+                            <td className="py-2 px-3"></td>{/* department */}
+                            <td className="py-2 px-3"></td>{/* position */}
+                            <td className="py-2 px-3"></td>{/* company_name */}
+                            <td className="py-2 px-3"></td>{/* phone */}                            
                           </tr>
                           <tr>
-                            <td className="py-2 px-3">Jane</td>
-                            <td className="py-2 px-3">Smith</td>
-                            <td className="py-2 px-3">jane@example.com</td>
+                            <td className="py-2 px-3">jane.smith@example.com</td>
+                            <td className="py-2 px-3">SecurePass$</td>
+                            <td className="py-2 px-3">Jane Smith</td>
                             <td className="py-2 px-3">employer</td>
-                            <td className="py-2 px-3"></td>
-                            <td className="py-2 px-3">Tech Corp</td>
+                            <td className="py-2 px-3"></td>{/* university */}
+                            <td className="py-2 px-3"></td>{/* department */}
+                            <td className="py-2 px-3"></td>{/* position */}
+                            <td className="py-2 px-3">Example Corp Inc.</td>{/* company_name */}
+                            <td className="py-2 px-3">555-0101</td>{/* phone */}                            
                           </tr>
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-sm mt-4 text-muted-foreground">Note: The older format with a single 'name' column is still supported and will be automatically split into first_name and last_name.</p>
                     <div className="mt-4">
-                      <Button variant="outline" size="sm" className="text-xs">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs"
+                        onClick={handleDownloadTemplate}
+                      >
                         <Download className="h-3 w-3 mr-1" /> Download Template
                       </Button>
                     </div>

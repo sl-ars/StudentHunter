@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, FileText, Mail, Briefcase, Building2, PlusCircle, BarChart, UserPlus } from "lucide-react"
+import { Users, FileText, Mail, Briefcase, Building2, PlusCircle, BarChart } from "lucide-react"
 import Link from "next/link"
 import ProtectedRoute from "@/components/protected-route"
 import { employerApi } from "@/lib/api"
-import { isMockEnabled } from "@/lib/utils/config"
 import { useToast } from "@/hooks/use-toast"
+import type { EmployerDashboardAnalytics } from "@/lib/types"
 
 interface DashboardStats {
   activeJobs: { value: number; change: string }
@@ -27,49 +27,54 @@ export default function EmployerDashboard() {
   const { toast } = useToast()
 
   useEffect(() => {
-    if (!user) router.push("/login")
+    if (!user) {
+      router.push("/login")
+      return
+    }
 
     const fetchDashboardStats = async () => {
+      setLoading(true)
       try {
-        setLoading(true)
-        // Fetch dashboard stats from API
-        const response = await employerApi.getAnalytics()
+        const apiResponse = await employerApi.getAnalytics()
 
-        setStats({
-          activeJobs: {
-            value: response.data.activeJobs || 0,
-            change: response.data.jobsChange || "+0 this month",
-          },
-          totalApplications: {
-            value: response.data.totalApplications || 0,
-            change: response.data.applicationsChange || "+0 this week",
-          },
-          interviewsScheduled: {
-            value: response.data.interviewsScheduled || 0,
-            change: response.data.interviewsChange || "Next 7 days",
-          },
-          responseRate: {
-            value: response.data.responseRate || "0%",
-            change: response.data.responseRateChange || "+0% this month",
-          },
-        })
+        if (apiResponse.status === "success" && apiResponse.data) {
+          const summaryData = apiResponse.data
+
+          setStats({
+            activeJobs: {
+              value: summaryData.active_jobs ?? 0,
+              change: "(change N/A)",
+            },
+            totalApplications: {
+              value: summaryData.total_applications ?? 0,
+              change: "(change N/A)",
+            },
+            interviewsScheduled: {
+              value: summaryData.application_status_counts?.['interviewed'] ?? 
+                     summaryData.application_status_counts?.['INTERVIEWED'] ?? 0,
+              change: "Next 7 days",
+            },
+            responseRate: {
+              value: "N/A",
+              change: "(change N/A)",
+            },
+          })
+        } else {
+          toast({
+            title: "Error loading stats",
+            description: apiResponse.message || "Failed to load dashboard statistics from API.",
+            variant: "destructive",
+          })
+          setStats(null)
+        }
       } catch (error) {
         console.error("Error fetching dashboard stats:", error)
         toast({
           title: "Error",
-          description: "Failed to load dashboard statistics",
+          description: "An unexpected error occurred while loading dashboard statistics.",
           variant: "destructive",
         })
-
-        // If API call fails or mock is enabled, use mock data
-        if (isMockEnabled()) {
-          setStats({
-            activeJobs: { value: 12, change: "+3 this month" },
-            totalApplications: { value: 156, change: "+45 this week" },
-            interviewsScheduled: { value: 8, change: "Next 7 days" },
-            responseRate: { value: "92%", change: "+5% this month" },
-          })
-        }
+        setStats(null)
       } finally {
         setLoading(false)
       }

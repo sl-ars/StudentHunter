@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { jobsApi } from "@/lib/api/jobs"
+import { jobApi } from "@/lib/api/jobs"
 import { useToast } from "@/hooks/use-toast"
 import { MoreHorizontal, Plus, Search, RefreshCw } from "lucide-react"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -29,16 +29,15 @@ export default function AdminJobsPage() {
   const fetchJobs = async (page = 1, search = "") => {
     setIsLoading(true)
     try {
-      const response = await jobsApi.getJobs({
+      const response = await jobApi.getJobs({
         page,
-        limit: 10,
-        search,
+        page_size: 10,
+        keyword: search,
       })
       
-      // The response now has a standard format with data.results
-      if (response && response.data && response.data.results) {
-        setJobs(response.data.results);
-        setTotalPages(Math.ceil(response.data.count / 10));
+      if (response && response.data && response.data.jobs) {
+        setJobs(response.data.jobs);
+        setTotalPages(Math.ceil(response.data.totalCount / 10));
       } else {
         setJobs([]);
         setTotalPages(1);
@@ -80,7 +79,7 @@ export default function AdminJobsPage() {
     if (!jobToDelete) return
     
     try {
-      await jobsApi.deleteJob(jobToDelete)
+      await jobApi.deleteJob(jobToDelete)
       toast({
         title: "Success",
         description: "Job deleted successfully",

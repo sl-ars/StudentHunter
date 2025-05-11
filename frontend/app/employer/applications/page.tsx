@@ -84,7 +84,7 @@ export default function EmployerApplicationsPage() {
                       <TableCell>
                         <div className="flex items-center">
                           <User className="mr-2 h-4 w-4" />
-                          {application.applicant_name}
+                          {application.applicant?.name}
                         </div>
                       </TableCell>
                       <TableCell>

@@ -575,8 +575,8 @@ const EmployerSections = ({
                   <Input
                     id="employer-company-name"
                     type="text"
-                    value={(profileData as EmployerProfile).company_name_display || (profileData as EmployerProfile).company || ""} 
-                    onChange={(e) => onInputChange('company_name_display' as keyof AnyFullProfile, e.target.value)}
+                    value={(profileData as EmployerProfile).company_name || (profileData as EmployerProfile).company || ""} 
+                    onChange={(e) => onInputChange('company_name' as keyof AnyFullProfile, e.target.value)}
                     placeholder="Your Company LLC"
                   />
                 </div>
@@ -825,9 +825,47 @@ const AdminSections = ({
   );
 };
 
-const StudentStatsCard = ({ profileData, completion, missingFields }: any) => (
-    <Card><CardHeader><CardTitle>Profile Progress</CardTitle></CardHeader><CardContent><Progress value={completion} className="h-2" /> <p>{missingFields?.join(', ')}</p></CardContent></Card>
-);
+// Updated StudentStatsCard to use profile_completeness_percentage and missing_profile_fields from profileData
+const StudentStatsCard = ({ profileData }: { profileData: StudentProfile }) => {
+    const completion = profileData.profile_completeness_percentage;
+    const missing = profileData.missing_profile_fields;
+
+    return (
+        <Card className="shadow-md">
+            <CardHeader>
+                <CardTitle className="flex items-center">
+                    <GraduationCap className="w-5 h-5 mr-2 text-vibrant-blue" /> Profile Progress
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {typeof completion === 'number' && (
+                    <div>
+                        <div className="flex justify-between mb-1">
+                            <span className="text-sm font-medium text-muted-foreground">Completeness</span>
+                            <span className="text-sm font-medium text-vibrant-blue">{completion.toFixed(0)}%</span>
+                        </div>
+                        <Progress value={completion} className="h-2 [&>div]:bg-vibrant-blue" />
+                    </div>
+                )}
+                {missing && missing.length > 0 && (
+                    <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-1">Areas to improve:</h4>
+                        <ul className="list-disc list-inside space-y-1 pl-2">
+                            {missing.map((field, index) => (
+                                <li key={index} className="text-xs text-gray-600 dark:text-gray-400">{field}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {(!missing || missing.length === 0) && typeof completion === 'number' && completion === 100 && (
+                     <p className="text-sm text-green-600 flex items-center">
+                        <CheckCircle2 className="w-4 h-4 mr-1.5" /> Profile is 100% complete!
+                    </p>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
 
 const EmployerStatsCard = ({ profileData }: any) => (
     <Card><CardHeader><CardTitle>Employer Stats</CardTitle></CardHeader><CardContent> {/* TODO */} </CardContent></Card>
@@ -843,7 +881,7 @@ const AdminStatsCard = ({ profileData }: any) => (
 
 
 export default function UnifiedProfilePage() {
-  const { user, loading: authLoading, logout, refreshUserInfo } = useAuth();
+  const { user, logout, refreshUserInfo } = useAuth(); // Removed authLoading
   const router = useRouter();
   const [profileData, setProfileData] = useState<AnyFullProfile | null>(null);
   const [originalProfileData, setOriginalProfileData] = useState<AnyFullProfile | null>(null);
@@ -884,6 +922,15 @@ export default function UnifiedProfilePage() {
           const studentProfile = response.data as StudentProfile;
           setSkillsInputValue(studentProfile.skills?.join(', ') || '');
           setAchievementsInputValue(studentProfile.achievements?.join('\n') || '');
+          // Set profileCompletion and missingFields from backend data if available
+          // These will be used by StudentStatsCard directly via profileData prop
+          // So, local states profileCompletion and missingFields might not be needed for students if backend provides this reliably.
+          if (typeof studentProfile.profile_completeness_percentage === 'number') {
+            setProfileCompletion(studentProfile.profile_completeness_percentage);
+          }
+          if (studentProfile.missing_profile_fields) {
+            setMissingFields(studentProfile.missing_profile_fields);
+          }
         } else if (response.data.role === USER_ROLES.EMPLOYER) {
           const employerProfile = response.data as EmployerProfile;
           setCompanySkillsInputValue(employerProfile.company_skills_tags?.join(', ') || '');
@@ -960,11 +1007,18 @@ export default function UnifiedProfilePage() {
 
   useEffect(() => {
     if (profileData && userRole) {
-        const { percentage, missing } = calculateProfileCompletion(profileData, userRole);
-        setProfileCompletion(percentage);
-        setMissingFields(missing);
+        // If the role is student, the stats are now directly in profileData.
+        // For other roles, or if student data is missing these fields, calculateProfileCompletion might still be used.
+        if (userRole !== USER_ROLES.STUDENT || 
+            (userRole === USER_ROLES.STUDENT && 
+             (!(profileData as StudentProfile).profile_completeness_percentage || 
+              !(profileData as StudentProfile).missing_profile_fields))) {
+          const { percentage, missing } = calculateProfileCompletion(profileData, userRole);
+          setProfileCompletion(percentage);
+          setMissingFields(missing);
+        }
     }
-}, [profileData, userRole]);
+  }, [profileData, userRole]);
 
   const calculateProfileCompletion = useCallback((data: AnyFullProfile | null, currentRole: UserRole | null) => {
     if (!data || !currentRole) return { percentage: 0, missing: [] };
@@ -1403,7 +1457,7 @@ export default function UnifiedProfilePage() {
     }
   };
 
-  if (authLoading || loadingProfile) {
+  if (loadingProfile || !user) { // Removed authLoading from condition
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-vibrant-blue"></div>
@@ -1450,7 +1504,9 @@ export default function UnifiedProfilePage() {
               </Card>
               
               {/* Статистика в зависимости от роли */}
-              {user.role === USER_ROLES.STUDENT && <StudentStatsCard profileData={profileData as StudentProfile} completion={profileCompletion} missingFields={missingFields} />}
+              {user.role === USER_ROLES.STUDENT && profileData && (
+                <StudentStatsCard profileData={profileData as StudentProfile} />
+              )}
               {user.role === USER_ROLES.EMPLOYER && <EmployerStatsCard profileData={profileData as EmployerProfile} />}
               {user.role === USER_ROLES.CAMPUS && <CampusStatsCard profileData={profileData as CampusProfile} />}
               {user.role === USER_ROLES.ADMIN && <AdminStatsCard profileData={profileData as AdminProfile} />}

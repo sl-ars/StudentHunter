@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { jobsApi } from "@/lib/api/jobs"
+import { jobApi } from "@/lib/api/jobs"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
 
@@ -16,7 +16,7 @@ export default function AdminNewJobPage() {
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)
     try {
-      await jobsApi.createJob(formData)
+      await jobApi.createJob(formData)
       toast({
         title: "Success",
         description: "Job posting created successfully",
