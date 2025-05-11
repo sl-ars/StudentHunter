@@ -547,7 +547,9 @@ class AdminAnalyticsView(APIView):
             logger.info(f"Total users: {total_users}")
             new_users = User.objects.filter(date_joined__gte=start_date).count()
             active_users = User.objects.filter(is_active=True).count()
-         
+        
+            user_distribution = [] # Initialize user_distribution as an empty list
+
             try:
                 students_count = User.objects.filter(role='student').count()
                 user_distribution.append({"name": "Students", "value": students_count})
