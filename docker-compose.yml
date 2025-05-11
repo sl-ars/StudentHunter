@@ -8,17 +8,32 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: "/api/"
+        NEXT_PUBLIC_API_URL: "/api"
+        NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
-    volumes:
-      - sh_static:/app/staticfiles:ro
-      - sh_media:/app/media:ro
     networks:
       - backend
       - nginx-proxy
+
+  nginx_proxy: # Nginx reverse proxy service
+    image: nginx:latest
+    container_name: sh-nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - sh_static:/app/staticfiles/:ro
+
+    networks:
+      - nginx-proxy
+      - backend
+    depends_on:
+      - sh-app
+      - backend
+    restart: unless-stopped
 
 ###############################################################################
 # Redis (for Celery)
@@ -75,7 +90,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
     volumes:
       - sh_static:/app/staticfiles
       - sh_media:/app/media

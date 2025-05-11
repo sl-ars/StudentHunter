@@ -226,18 +226,16 @@ SPECTACULAR_SETTINGS = {
 }
 
 # Celery Configuration
-# Ensure you have Redis server running and 'celery' and 'redis' packages installed.
-# pip install celery redis
+
 CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://redis:6379/0')
 CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE # Uses the TIME_ZONE already defined in Django settings
+CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes task time limit
-# For scheduled tasks (Celery Beat) with django-celery-beat:
-# CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_TASK_TIME_LIMIT = 30 * 60
+
 
 
 # Sentry Configuration
@@ -249,17 +247,15 @@ if SENTRY_DSN:
             DjangoIntegration(),
             CeleryIntegration(),
             LoggingIntegration(
-                level=logging.INFO,        # Capture info and above as breadcrumbs
-                event_level=logging.ERROR  # Send errors as events
+                level=logging.INFO,
+                event_level=logging.ERROR
             ),
         ],
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        traces_sample_rate=env.float('SENTRY_TRACES_SAMPLE_RATE', default=0.1), # Default to 10%
-        send_default_pii=True, # If you want to send PII data
-        environment=env('DJANGO_ENVIRONMENT', default='dev'), # To distinguish environments
-        release=env('SENTRY_RELEASE', default=None) # Optional: set your release version
+
+        traces_sample_rate=env.float('SENTRY_TRACES_SAMPLE_RATE', default=0.1),
+        send_default_pii=True,
+        environment=env('DJANGO_ENVIRONMENT', default='dev'),
+        release=env('SENTRY_RELEASE', default=None)
     )
 
 

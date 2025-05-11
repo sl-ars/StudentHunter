@@ -60,6 +60,15 @@ X_FRAME_OPTIONS = 'DENY'
 #     },
 # }
 
+# ─── Celery ──────────────────────────────────────────────────────
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://sh-redis:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://sh-redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'  # Or your preferred timezone
+
 # ─── JWT ─────────────────────────────────────────────────────────
 
 SIMPLE_JWT.update({
