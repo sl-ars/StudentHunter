@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { useRouter, usePathname, useSearchParams } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { authApi } from "@/lib/api/auth"
 import { User, UserRole } from "@/lib/types"
 import { toast } from "sonner"
@@ -28,7 +28,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
 
   // Define redirectBasedOnRole function
   const redirectBasedOnRole = (role: UserRole) => {
@@ -462,16 +461,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false
     return Array.isArray(roles) ? roles.includes(user.role) : user.role === roles
   }
-
-
-  useEffect(() => {
-    if (!isLoading && !user && pathname === "/login") {
-      const redirect = searchParams.get("redirect")
-      if (redirect) {
-        sessionStorage.setItem("authRedirect", redirect)
-      }
-    }
-  }, [isLoading, user, pathname, searchParams])
 
   const value: AuthContextType = {
     user,

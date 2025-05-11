@@ -195,34 +195,24 @@ export const employerApi = {
   },
 
   // Analytics
-  getAnalytics: async (params?: { period?: string }): Promise<ApiResponse<EmployerDashboardAnalytics>> => {
+  getAnalytics: async (params?: { period?: string }): Promise<ApiResponse<BackendAnalyticsPayload>> => {
     try {
       console.log("Calling analytics API at /analytics/employer/");
-      // apiClient.get returns the overall structure from the server.
-      // The server's response for this endpoint has a nested data structure.
       const response = await apiClient.get<ApiResponse<BackendAnalyticsPayload>>("/analytics/employer/", { params });
       console.log("Analytics API raw response object from apiClient.get:", response);
 
-      // response.data here is ApiResponse<BackendAnalyticsPayload>
-      // response.data.data is BackendAnalyticsPayload
-      // response.data.data.data is { summary, time_series, ... }
-      // response.data.data.data.summary is EmployerDashboardAnalytics
-
-      if (response.data.status === "success" && response.data.data?.data?.summary) {
-        return {
-          status: "success", // Use the outer status or the inner one if more relevant
-          message: response.data.message || response.data.data.message || "Analytics retrieved successfully",
-          data: response.data.data.data.summary, // This is the EmployerDashboardAnalytics object
-        };
+      // response.data is already ApiResponse<BackendAnalyticsPayload>
+      // We should return this directly if the call was successful and data seems valid.
+      if (response.data && response.data.status === "success" && response.data.data?.data?.summary) { // Check deep validity
+        return response.data; // Return the full ApiResponse<BackendAnalyticsPayload>
       } else {
-        // Handle cases where the expected nested structure is not found
-        const errorMessage = response.data.message || response.data.data?.message || "Analytics data is not in the expected format or an error occurred.";
+        const errorMessage = response.data?.message || response.data?.data?.message || "Analytics data is not in the expected format or an API error occurred.";
         console.warn("Analytics API response error or unexpected structure:", response.data);
         return {
           status: "error",
           message: errorMessage,
-          data: {} as EmployerDashboardAnalytics,
-        };
+          data: {} as BackendAnalyticsPayload, // Ensure data field exists and is typed
+        } as ApiResponse<BackendAnalyticsPayload>; // Cast for type consistency
       }
     } catch (error: any) {
       console.error("Error fetching employer analytics:", error);
@@ -230,8 +220,8 @@ export const employerApi = {
       return {
         status: "error",
         message: errorMessage,
-        data: {} as EmployerDashboardAnalytics,
-      };
+        data: {} as BackendAnalyticsPayload,
+      } as ApiResponse<BackendAnalyticsPayload>; // Cast for type consistency
     }
   },
 

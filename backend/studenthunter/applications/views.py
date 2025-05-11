@@ -15,6 +15,9 @@ from core.utils import ok, fail
 from analytics.models import JobApplicationMetrics
 from users.models import StudentProfile
 
+# Import Celery tasks
+from .tasks import send_new_application_email_task, send_interview_scheduled_email_task
+
 STUDENT_COMPLETENESS_CHECKS = {
     'name': lambda user, profile: bool(user.name and user.name.strip()),
     'avatar': lambda user, profile: bool(user.avatar),
@@ -114,6 +117,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         except (ImportError, ContentType.DoesNotExist):
             pass
 
+        # Send email notification to employer
+        try:
+            send_new_application_email_task.delay(application_instance.id)
+            print(f"Celery task send_new_application_email_task queued for application ID: {application_instance.id}")
+        except Exception as e:
+            # Log this error, but don't let it break the application creation flow
+            print(f"Error queuing Celery task send_new_application_email_task for application ID {application_instance.id}: {e}")
+
     @extend_schema(
         summary="Update application status",
         request={
@@ -206,6 +217,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.save()
         
         response_serializer = ApplicationDetailSerializer(application, context=self.get_serializer_context())
+        
+        # Send email notification to student about the interview
+        try:
+            send_interview_scheduled_email_task.delay(application.id)
+            print(f"Celery task send_interview_scheduled_email_task queued for application ID: {application.id}")
+        except Exception as e:
+            # Log this error, but don't let it break the interview scheduling flow
+            print(f"Error queuing Celery task send_interview_scheduled_email_task for application ID {application.id}: {e}")
+            
         return ok(response_serializer.data)
 
     @extend_schema(

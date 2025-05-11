@@ -1,19 +1,19 @@
 from datetime import timedelta
 from pathlib import Path
 import os, environ
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+import logging
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
-# Use environment variables
 env = environ.Env()
 env_path = os.getenv("ENV_PATH", BASE_DIR.parent.parent / ".env")
 environ.Env.read_env(env_path)
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-SECRET_KEY = env('SECRET_KEY', default='insecure-dev-key')  # временно безопасный fallback
+SECRET_KEY = env('SECRET_KEY', default='insecure-dev-key')
 DEBUG = env.bool('DEBUG', default=True)
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost"])
@@ -34,14 +34,14 @@ INSTALLED_APPS = [
     'applications',
     'companies',
     'analytics',
-    # 'notifications',
     'admin_api',
     'campus',
     'resources',
     'core',
     'users',
     'drf_spectacular',
-    'corsheaders'
+    'corsheaders',
+    'sentry_sdk',
 ]
 
 MIDDLEWARE = [
@@ -102,8 +102,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -111,7 +111,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
-# AWS S3
 AWS_ACCESS_KEY_ID = env.str('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = env.str('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = env.str('AWS_STORAGE_BUCKET_NAME')
@@ -196,8 +195,6 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainSlidingSerializer",
     "SLIDING_TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSlidingSerializer",
 }
-
-# Spectacular settings for Swagger
 SPECTACULAR_SETTINGS = {
     'TITLE': 'StudentHunter API',
     'DESCRIPTION': 'API for StudentHunter',
@@ -214,19 +211,13 @@ SPECTACULAR_SETTINGS = {
         {'name': 'core', 'description': 'Core operations'},
         {'name': 'users', 'description': 'Operations related to Users and Authentication'},
     ],
-
-    # UI Customization
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'persistAuthorization': True,
         'displayOperationId': False,
     },
-
-    # Other settings
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': r'/api/v[0-9]',
-
-    # Authentication
     'SECURITY': [
         {
             'Bearer': []
@@ -235,14 +226,41 @@ SPECTACULAR_SETTINGS = {
 }
 
 # Celery Configuration
-# CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
-# CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
-# CELERY_ACCEPT_CONTENT = ['json']
-# CELERY_TASK_SERIALIZER = 'json'
-# CELERY_RESULT_SERIALIZER = 'json'
-# CELERY_TIMEZONE = 'UTC'
-# CELERY_TASK_TRACK_STARTED = True
-# CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+# Ensure you have Redis server running and 'celery' and 'redis' packages installed.
+# pip install celery redis
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://redis:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE # Uses the TIME_ZONE already defined in Django settings
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes task time limit
+# For scheduled tasks (Celery Beat) with django-celery-beat:
+# CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+
+# Sentry Configuration
+SENTRY_DSN = env('SENTRY_DSN', default=None)
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            CeleryIntegration(),
+            LoggingIntegration(
+                level=logging.INFO,        # Capture info and above as breadcrumbs
+                event_level=logging.ERROR  # Send errors as events
+            ),
+        ],
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production.
+        traces_sample_rate=env.float('SENTRY_TRACES_SAMPLE_RATE', default=0.1), # Default to 10%
+        send_default_pii=True, # If you want to send PII data
+        environment=env('DJANGO_ENVIRONMENT', default='dev'), # To distinguish environments
+        release=env('SENTRY_RELEASE', default=None) # Optional: set your release version
+    )
 
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
@@ -259,8 +277,6 @@ CORS_ALLOW_METHODS = [
 ]
 
 CORS_ALLOW_HEADERS = ["*"]
-
-# Security settings
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
@@ -316,3 +332,18 @@ LOGGING = {
         },
     },
 }
+
+
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.example.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='email@example.com')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='password')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@sh.studix.uno')
+SERVER_EMAIL = env('SERVER_EMAIL', default=DEFAULT_FROM_EMAIL)
+ADMINS = [
+    ('Admin Name', env('ADMIN_EMAIL', default='admin@sh.studix.uno'))
+]
+MANAGERS = ADMINS

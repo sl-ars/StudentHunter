@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { employerApi } from "@/lib/api/employer"
+import type { EmployerDashboardAnalytics, BackendAnalyticsPayload } from "@/lib/types"
 import {
   Bar,
   BarChart,
@@ -22,12 +23,13 @@ import {
   Line
 } from "recharts"
 import ProtectedRoute from "@/components/protected-route"
+import { toast } from "sonner"
 
 // Цветовая схема, согласованная с темой приложения
 const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"]
 
 // Кастомный компонент для стилизованного тултипа
-const CustomTooltip = ({ active, payload, label, className }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-background border border-border rounded-md shadow-md p-2 text-sm">
@@ -48,101 +50,74 @@ const CustomTooltip = ({ active, payload, label, className }: any) => {
   return null;
 };
 
-// Define interface for analytics data
-interface AnalyticsData {
-  stats?: {
-    jobs: {
-      total: number;
-      active: number;
-      filled: number;
-      draft: number;
-      views?: number;
-    };
-    applications: {
-      total: number;
-      pending: number;
-      reviewing: number;
-      accepted: number;
-      rejected: number;
-    };
-    clicks: {
-      total: number;
-      applied: number;
-      applyRate: number;
-    };
-    interviews: {
-      scheduled: number;
-      completed: number;
-      canceled: number;
-    };
-  };
-  analytics?: {
-    jobViews: any[];
-    applicationStats: any[];
-    applicationStatuses: any[];
-    jobStatusesData: any[];
-    popularJobs: any[];
-  };
-  data?: {
-    stats: any;
-    analytics: any;
-  };
+// Define a type for the structured chart/list data derived from BackendAnalyticsPayload.data
+interface ProcessedAnalytics {
+  jobViewsOverTime: BackendAnalyticsPayload['data']['time_series']['job_views_over_time'];
+  applicationsOverTime: BackendAnalyticsPayload['data']['time_series']['applications_over_time'];
+  applicationStatusDistribution: { name: string; value: number }[];
+  popularJobsData: BackendAnalyticsPayload['data']['popular_jobs'];
+  // Add more processed data structures as needed for charts
 }
 
 export default function EmployerAnalyticsPage() {
-  const [analytics, setAnalytics] = useState<any>(null)
-  const [stats, setStats] = useState<any>(null)
+  const [summaryStats, setSummaryStats] = useState<EmployerDashboardAnalytics | null>(null)
+  const [processedChartData, setProcessedChartData] = useState<ProcessedAnalytics>({
+    jobViewsOverTime: [],
+    applicationsOverTime: [],
+    applicationStatusDistribution: [],
+    popularJobsData: [],
+  });
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchAnalytics = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true)
+        console.log("Fetching employer analytics data for dedicated page...");
+        const response = await employerApi.getAnalytics({ period: 'month' }); // Returns ApiResponse<BackendAnalyticsPayload>
+        console.log("Full analytics response received:", response);
         
-        // Use real API only
-        console.log("Fetching employer analytics data...")
-        const response = await employerApi.getAnalytics({ period: 'month' })
-        console.log("Response received:", response)
-        
-        if (response.status === 'success') {
-          console.log("Analytics data structure:", response.data);
+        if (response.status === 'success' && response.data?.data) {
+          const backendAnalyticsContainer = response.data.data; // This is { summary, time_series, popular_jobs }
           
-          // Handle multiple possible response formats 
-          let analyticsData = response.data as AnalyticsData;
+          setSummaryStats(backendAnalyticsContainer.summary ?? null);
+
+          // Process data for charts
+          const appStatusCounts = backendAnalyticsContainer.summary?.application_status_counts || {};
+          const appStatusDistribution = Object.keys(appStatusCounts).map(key => ({
+            name: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize status name
+            value: appStatusCounts[key]
+          }));
+
+          setProcessedChartData({
+            jobViewsOverTime: backendAnalyticsContainer.time_series?.job_views_over_time || [],
+            applicationsOverTime: backendAnalyticsContainer.time_series?.applications_over_time || [],
+            applicationStatusDistribution: appStatusDistribution,
+            popularJobsData: backendAnalyticsContainer.popular_jobs || [],
+          });
           
-          // Case 1: The API returns { data: { stats, analytics } }
-          if (analyticsData?.data?.stats && analyticsData?.data?.analytics) {
-            console.log("Data format 1: nested data structure");
-            setStats(analyticsData.data.stats);
-            setAnalytics(analyticsData.data.analytics);
-          } 
-          // Case 2: The API returns { stats, analytics } directly
-          else if (analyticsData?.stats && analyticsData?.analytics) {
-            console.log("Data format 2: direct stats and analytics");
-            setStats(analyticsData.stats);
-            setAnalytics(analyticsData.analytics);
-          }
-          // If neither format matches, show an error
-          else {
-            console.error("Invalid analytics data structure:", analyticsData);
-            throw new Error('Invalid analytics data structure. Expected stats and analytics properties.');
-          }
-          
-          setLoading(false);
         } else {
-          console.error("API returned error or no data:", response)
-          throw new Error(response.message || 'Failed to load analytics data')
+          const errorMessage = response.message || response.data?.message || "Failed to load analytics data or data is in an unexpected format.";
+          console.error("API returned error or no data:", response);
+          setError(errorMessage);
+          setSummaryStats(null);
+          setProcessedChartData({ jobViewsOverTime: [], applicationsOverTime: [], applicationStatusDistribution: [], popularJobsData: [] });
         }
       } catch (err) {
-        console.error("Error fetching analytics:", err)
-        setError(`Could not load data from API: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again later.`)
-        setLoading(false)
+        console.error("Error fetching analytics:", err);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        setError(`Could not load data from API: ${message}. Please try again later.`);
+        setSummaryStats(null);
+        setProcessedChartData({ jobViewsOverTime: [], applicationsOverTime: [], applicationStatusDistribution: [], popularJobsData: [] });
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
-    fetchAnalytics()
-  }, [])
+    fetchAnalytics();
+  }, []);
 
   // Добавляем глобальные CSS стили для Recharts
   useEffect(() => {
@@ -224,17 +199,17 @@ export default function EmployerAnalyticsPage() {
     )
   }
 
-  if (!analytics || !stats) {
+  if (!summaryStats) {
     return (
       <div className="container mx-auto py-8">
         <Card>
           <CardHeader>
             <CardTitle>Job Analytics</CardTitle>
-            <CardDescription>No analytics data available</CardDescription>
+            <CardDescription>No summary data available</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-center py-8 text-gray-500">
-              No analytics data is currently available. Please check back later.
+              No summary analytics data is currently available. Please check back later.
             </div>
           </CardContent>
         </Card>
@@ -242,322 +217,170 @@ export default function EmployerAnalyticsPage() {
     )
   }
 
+  // JSX for displaying stats and charts will need to be updated to use 
+  // summaryStats and processedChartData correctly.
+  // Example for summary cards (ensure these match your actual UI):
+  const summaryCardsData = [
+    { title: "Total Jobs", value: summaryStats.total_jobs ?? 0, iconColor: "text-blue-500" },
+    { title: "Active Jobs", value: summaryStats.active_jobs ?? 0, iconColor: "text-green-500" },
+    { title: "Total Applications", value: summaryStats.total_applications ?? 0, iconColor: "text-yellow-500" },
+    { title: "Total Job Views", value: summaryStats.total_job_views ?? 0, iconColor: "text-purple-500" },
+  ];
+
   return (
-    <ProtectedRoute roles="employer">
+    <ProtectedRoute roles={["employer"]}>
       <div className="container mx-auto py-8">
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Job Analytics</CardTitle>
-            <CardDescription>View insights about your job postings and applications</CardDescription>
+            <CardTitle className="text-2xl font-semibold">Analytics Dashboard</CardTitle>
+            <CardDescription>Overview of your recruitment performance.</CardDescription>
           </CardHeader>
-          <CardContent className="p-6">
-            {/* Key Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Jobs</div>
-                  <div className="text-3xl font-bold mt-1">{stats.jobs.total || 0}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {stats.jobs.active || 0} active, {stats.jobs.filled || 0} filled, {stats.jobs.draft || 0} draft
-                  </div>
-                  <div className="w-full h-1 bg-blue-100 dark:bg-blue-900/50 mt-4 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 dark:bg-blue-400 rounded-full" 
-                      style={{ width: `${stats.jobs.total ? (stats.jobs.active / stats.jobs.total * 100) : 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {stats.jobs.active || 0} active jobs ({Math.round(stats.jobs.total ? (stats.jobs.active / stats.jobs.total * 100) : 0)}%)
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm font-medium text-green-600 dark:text-green-400">Applications</div>
-                  <div className="text-3xl font-bold mt-1">{stats.applications.total || 0}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {stats.applications.pending || 0} pending, {stats.applications.accepted || 0} accepted
-                  </div>
-                  <div className="w-full h-1 bg-green-100 dark:bg-green-900/50 mt-4 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 dark:bg-green-400 rounded-full" 
-                      style={{ width: `${stats.applications.total ? (stats.applications.accepted / stats.applications.total * 100) : 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {stats.applications.accepted || 0} accepted ({Math.round(stats.applications.total ? (stats.applications.accepted / stats.applications.total * 100) : 0)}%)
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm font-medium text-amber-600 dark:text-amber-400">Job Views</div>
-                  <div className="text-3xl font-bold mt-1">{stats.clicks.total || 0}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {stats.applications.total || 0} applications received
-                  </div>
-                  <div className="w-full h-1 bg-amber-100 dark:bg-amber-900/50 mt-4 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-amber-500 dark:bg-amber-400 rounded-full" 
-                      style={{ width: `${stats.clicks.total ? (stats.applications.total / stats.clicks.total * 100) : 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {stats.clicks.applyRate || 0}% application rate
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="text-sm font-medium text-purple-600 dark:text-purple-400">Interviews</div>
-                  <div className="text-3xl font-bold mt-1">{stats.interviews.scheduled || 0}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {stats.interviews.completed || 0} completed, {stats.interviews.canceled || 0} canceled
-                  </div>
-                  <div className="w-full h-1 bg-purple-100 dark:bg-purple-900/50 mt-4 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-purple-500 dark:bg-purple-400 rounded-full" 
-                      style={{ width: `${stats.interviews.scheduled ? (stats.interviews.completed / stats.interviews.scheduled * 100) : 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {stats.interviews.completed || 0} completed ({Math.round(stats.interviews.scheduled ? (stats.interviews.completed / stats.interviews.scheduled * 100) : 0)}%)
-                  </div>
-                </CardContent>
-              </Card>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {summaryCardsData.map((item, index) => (
+                <Card key={index}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
+                    {/* You can add an icon here if desired, e.g., based on item.iconColor */}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{item.value}</div>
+                    {/* <p className="text-xs text-muted-foreground">+20.1% from last month</p> */}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {/* Charts */}
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="mb-4">
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="jobs">Job Status</TabsTrigger>
                 <TabsTrigger value="applications">Applications</TabsTrigger>
-                <TabsTrigger value="popular">Popular Jobs</TabsTrigger>
+                <TabsTrigger value="jobs">Job Performance</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="overview">
+              <TabsContent value="overview" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Job View Trends</CardTitle>
-                      <CardDescription>Daily view trends for your job postings</CardDescription>
+                      <CardTitle>Applications Over Time</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="w-full h-[350px]">
-                        {analytics.jobViews && analytics.jobViews.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart 
-                              data={analytics.jobViews}
-                              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-                            >
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border opacity-50" />
-                              <XAxis dataKey="date" className="text-foreground" />
-                              <YAxis className="text-foreground" />
-                              <Tooltip content={<CustomTooltip />} />
-                              <Legend />
-                              <Line 
-                                type="monotone" 
-                                dataKey="views" 
-                                name="Job Views" 
-                                stroke="#3B82F6" 
-                                activeDot={{ r: 8 }} 
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="flex flex-col h-full items-center justify-center p-6 text-center">
-                            <p className="text-gray-500 dark:text-gray-400 mb-2">No job view data recorded yet</p>
-                            <p className="text-sm text-gray-400 dark:text-gray-500">View data will appear here once users view your job postings</p>
-                          </div>
-                        )}
-                      </div>
+                    <CardContent className="h-[350px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={processedChartData.applicationsOverTime}>
+                          <defs>
+                            <linearGradient id="colorApplications" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={COLORS[0]} stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor={COLORS[0]} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                          <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                          <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Area type="monotone" dataKey="applications" stroke={COLORS[0]} fillOpacity={1} fill="url(#colorApplications)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader>
-                      <CardTitle>Application Trends</CardTitle>
-                      <CardDescription>Daily application submissions</CardDescription>
+                      <CardTitle>Job Views Over Time</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="w-full h-[350px]">
-                        {analytics.applicationStats && analytics.applicationStats.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart 
-                              data={analytics.applicationStats}
-                              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-                            >
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border opacity-50" />
-                              <XAxis dataKey="date" className="text-foreground" />
-                              <YAxis className="text-foreground" />
-                              <Tooltip content={<CustomTooltip />} />
-                              <Legend />
-                              <Area 
-                                type="monotone" 
-                                dataKey="applications" 
-                                name="Applications" 
-                                stroke="#10B981" 
-                                fill="#10B981" 
-                                fillOpacity={0.2} 
-                              />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="flex flex-col h-full items-center justify-center p-6 text-center">
-                            <p className="text-gray-500 dark:text-gray-400 mb-2">No applications received yet</p>
-                            <p className="text-sm text-gray-400 dark:text-gray-500">Application data will appear here once candidates apply to your jobs</p>
-                          </div>
-                        )}
-                      </div>
+                    <CardContent className="h-[350px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={processedChartData.jobViewsOverTime}>
+                           <defs>
+                            <linearGradient id="colorJobViews" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={COLORS[1]} stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor={COLORS[1]} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                          <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
+                          <YAxis fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Area type="monotone" dataKey="views" stroke={COLORS[1]} fillOpacity={1} fill="url(#colorJobViews)" name="Job Views" />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
                 </div>
               </TabsContent>
 
-              <TabsContent value="jobs">
+              <TabsContent value="applications" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Job Status Distribution</CardTitle>
-                    <CardDescription>Breakdown of your job postings by status</CardDescription>
+                    <CardTitle>Application Status Distribution</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="w-full h-[400px]">
-                      {analytics.jobStatusesData && analytics.jobStatusesData.length > 0 && 
-                       analytics.jobStatusesData.some((item: any) => item.value > 0) ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={analytics.jobStatusesData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={true}
-                              outerRadius={130}
-                              innerRadius={60}
-                              fill="#8884d8"
-                              dataKey="value"
-                              paddingAngle={3}
-                              label={({ name, value, percent }) => 
-                                `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                              }
-                            >
-                              {analytics.jobStatusesData.map((entry: any, index: number) => (
-                                <Cell 
-                                  key={`cell-${index}`} 
-                                  fill={COLORS[index % COLORS.length]} 
-                                  stroke="var(--background)"
-                                  strokeWidth={2}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend layout="horizontal" verticalAlign="bottom" align="center" />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="flex flex-col h-full items-center justify-center p-6 text-center">
-                          <p className="text-gray-500 dark:text-gray-400 mb-2">No job status data available</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500">This chart will display your job distribution as you create jobs with different statuses</p>
-                        </div>
-                      )}
-                    </div>
+                  <CardContent className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie 
+                          data={processedChartData.applicationStatusDistribution} 
+                          cx="50%" 
+                          cy="50%" 
+                          labelLine={false}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }) => {
+                            const RADIAN = Math.PI / 180;
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                            return (
+                              <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12}>
+                                {`${name} (${(percent * 100).toFixed(0)}%)`}
+                              </text>
+                            );
+                          }}
+                        >
+                          {processedChartData.applicationStatusDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
+                 {/* Add more charts or tables for application data if needed */}
               </TabsContent>
 
-              <TabsContent value="applications">
+              <TabsContent value="jobs" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Application Status</CardTitle>
-                    <CardDescription>Distribution of applications by status</CardDescription>
+                    <CardTitle>Popular Jobs (Top 5)</CardTitle>
+                    <CardDescription>Based on views and applications.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="w-full h-[400px]">
-                      {analytics.applicationStatuses && analytics.applicationStatuses.length > 0 && 
-                       analytics.applicationStatuses.some((item: any) => item.value > 0) ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={analytics.applicationStatuses}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={true}
-                              outerRadius={130}
-                              innerRadius={60}
-                              fill="#8884d8"
-                              dataKey="value"
-                              paddingAngle={3}
-                              label={({ name, value, percent }) => 
-                                `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                              }
-                            >
-                              {analytics.applicationStatuses.map((entry: any, index: number) => (
-                                <Cell 
-                                  key={`cell-${index}`}
-                                  fill={COLORS[index % COLORS.length]}
-                                  stroke="var(--background)"
-                                  strokeWidth={2}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend layout="horizontal" verticalAlign="bottom" align="center" />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="flex flex-col h-full items-center justify-center p-6 text-center">
-                          <p className="text-gray-500 dark:text-gray-400 mb-2">No application status data available</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500">This chart will display application statuses as candidates apply to your jobs</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="popular">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Popular Jobs</CardTitle>
-                    <CardDescription>Your most viewed and applied-to job postings</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    {analytics.popularJobs && analytics.popularJobs.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full table-auto">
-                          <thead>
-                            <tr className="border-b border-border">
-                              <th className="text-left py-3 px-4">Job Title</th>
-                              <th className="text-right py-3 px-4">Views</th>
-                              <th className="text-right py-3 px-4">Applications</th>
-                              <th className="text-right py-3 px-4">Conversion Rate</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {analytics.popularJobs.map((job: any, index: number) => (
-                              <tr key={job.id} className="border-b border-border">
-                                <td className="py-3 px-4">{job.title}</td>
-                                <td className="text-right py-3 px-4">{job.views}</td>
-                                <td className="text-right py-3 px-4">{job.applications}</td>
-                                <td className="text-right py-3 px-4">{job.conversionRate}%</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                  <CardContent>
+                    {processedChartData.popularJobsData && processedChartData.popularJobsData.length > 0 ? (
+                      <ul className="space-y-3">
+                        {processedChartData.popularJobsData.map((job: { id: any; title: string; view_count: number; num_applications: number }, index: number) => (
+                          <li key={job.id || index} className="flex justify-between items-center p-3 bg-muted/50 rounded-md hover:bg-muted transition-colors">
+                            <div>
+                              <p className="font-semibold text-primary">{job.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {job.view_count} views, {job.num_applications} applications
+                              </p>
+                            </div>
+                            {/* Maybe a link to the job: <Button variant="link" size="sm" asChild><Link href={`/jobs/${job.id}`}>View</Link></Button> */}
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
-                      <div className="flex flex-col h-[300px] items-center justify-center p-6 text-center">
-                        <p className="text-gray-500 dark:text-gray-400 mb-2">No popular jobs data available</p>
-                        <p className="text-sm text-gray-400 dark:text-gray-500">Job popularity data will appear here once jobs receive views and applications</p>
-                      </div>
+                      <p>No popular job data available.</p>
                     )}
                   </CardContent>
                 </Card>
+                {/* Add more charts or tables for job performance if needed */}
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </div>
     </ProtectedRoute>
-  )
+  );
 } 
