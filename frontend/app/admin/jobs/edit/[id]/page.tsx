@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { jobsApi } from "@/lib/api/jobs"
+import { jobApi } from "@/lib/api/jobs"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
 import React from "react"
@@ -13,7 +13,6 @@ import { Trash2 } from "lucide-react"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export default function AdminEditJobPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  // Unwrap params using React.use() for Next.js 15 compatibility
   const resolvedParams = typeof params === 'object' && !('then' in params) 
     ? params 
     : React.use(params as Promise<{ id: string }>)
@@ -30,8 +29,18 @@ export default function AdminEditJobPage({ params }: { params: Promise<{ id: str
     const fetchJob = async () => {
       setIsLoading(true)
       try {
-        const response = await jobsApi.getJobById(jobId)
-        setJob(response.data)
+        const response = await jobApi.getJob(jobId)
+        if (response && response.status === 'success' && response.data) {
+          setJob(response.data)
+        } else {
+          console.error("Error fetching job details or job not found:", response?.message);
+          setJob(null);
+          toast({
+            title: "Error",
+            description: response?.message || "Failed to load job details",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
         console.error("Error fetching job:", error)
         toast({
@@ -52,7 +61,7 @@ export default function AdminEditJobPage({ params }: { params: Promise<{ id: str
   const handleSubmit = async (formData: any) => {
     setIsSaving(true)
     try {
-      await jobsApi.updateJob(jobId, formData)
+      await jobApi.updateJob(jobId, formData)
       toast({
         title: "Success",
         description: "Job posting updated successfully",
@@ -76,7 +85,7 @@ export default function AdminEditJobPage({ params }: { params: Promise<{ id: str
   
   const handleDelete = async () => {
     try {
-      await jobsApi.deleteJob(jobId)
+      await jobApi.deleteJob(jobId)
       toast({
         title: "Success",
         description: "Job deleted successfully",

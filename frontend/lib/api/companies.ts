@@ -5,7 +5,6 @@ import type { ApiResponse } from "./client"
 import type { Company } from "@/lib/types"
 import { isMockEnabled } from "@/lib/utils/config"
 
-// Define the standard API response format for axios direct calls
 export interface AxiosApiResponse<T = any> {
   data: T
   status: string
@@ -37,19 +36,20 @@ export interface CompaniesResponse {
   totalCount: number
 }
 
-// Legacy API using axios directly
 export const companiesApi = {
   getCompanies: async (filters: CompanyFilters = {}) => {
     try {
       const response = await apiClient.get('/company/', { params: filters });
+      const companyList = response.data && response.data.data && Array.isArray(response.data.data.results) 
+                          ? response.data.data.results 
+                          : [];
       return {
         status: 'success',
         message: 'Companies retrieved successfully',
-        data: response.data.results || []
+        data: companyList
       };
     } catch (error) {
       console.error('Error fetching companies:', error);
-      // If mock is enabled, return mock data
       if (isMockEnabled()) {
         return {
           status: 'success',
@@ -143,7 +143,6 @@ export const companiesApi = {
     }
   },
 
-  // Company logo
   uploadLogo: async (id: string, file: File) => {
     try {
       const formData = new FormData();
@@ -170,7 +169,6 @@ export const companiesApi = {
     }
   },
 
-  // Company verification
   verifyCompany: async (id: string) => {
     try {
       const response = await apiClient.post(`/company/${id}/verify/`, {});
@@ -189,7 +187,6 @@ export const companiesApi = {
     }
   },
 
-  // Company stats
   getCompanyStats: async (id: string) => {
     try {
       const response = await apiClient.get(`/company/${id}/stats/`);
@@ -214,14 +211,12 @@ export const companiesApi = {
   },
 }
 
-// Modern API using apiClient with error handling
 export const companyApi = {
   getAll: async (filters: CompanyFilters = {}): Promise<ApiResponse<CompaniesResponse>> => {
     try {
       const pageSize = filters.page_size ?? 20;
       const response = await apiClient.get<ApiResponse<CompanyListResponse>>("/company", { params: filters })
 
-      // Check if the response has the expected structure
       if (response.data && response.data.data && Array.isArray(response.data.data.results)) {
         const { count, next, previous, results } = response.data.data
 
@@ -236,7 +231,6 @@ export const companyApi = {
           },
         }
       } else if (response.data && typeof response.data === 'object' && 'results' in response.data) {
-        // Handle direct API response format (from backend)
         const directResponse = response.data as unknown as CompanyListResponse
         const { count, next, previous, results } = directResponse
 
@@ -251,7 +245,6 @@ export const companyApi = {
           },
         }
       } else {
-        // Handle unexpected response structure
         console.error("Unexpected API response structure:", response)
         return {
           status: "error",
@@ -331,7 +324,6 @@ export const companyApi = {
     }
   },
 
-  // Company logo
   uploadLogo: async (id: string, file: File): Promise<ApiResponse<{ url: string }>> => {
     try {
       const formData = new FormData()
@@ -352,7 +344,6 @@ export const companyApi = {
     }
   },
 
-  // Company verification
   verifyCompany: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
     try {
       const response = await apiClient.post<ApiResponse<{ success: boolean }>>(`/company/${id}/verify`, {})
@@ -366,21 +357,6 @@ export const companyApi = {
     }
   },
 
-  // Company jobs
-  // getCompanyJobs: async (id: string): Promise<ApiResponse<JobListResponse>> => {
-  //   try {
-  //     const response = await apiClient.get<ApiResponse<JobListResponse>>(`/companies/${id}/jobs`)
-  //     return response.data
-  //   } catch (error: any) {
-  //     return {
-  //       status: "error",
-  //       message: error.message || "Failed to retrieve company jobs",
-  //       data: null as any,
-  //     }
-  //   }
-  // },
-
-  // Company stats
   getCompanyStats: async (
     id: string,
   ): Promise<
