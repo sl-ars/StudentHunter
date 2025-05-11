@@ -17,16 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import ProtectedRoute from "@/components/protected-route"
 import { employerApi } from "@/lib/api"
-import { isMockEnabled } from "@/lib/utils/config"
-import { toast } from "@/components/ui/use-toast"
-
-interface Application {
-  id: string
-  name: string
-  position: string
-  date: string
-  status: string
-}
+import { toast } from "sonner"
+import type { Application } from "@/lib/types"
 
 export default function EmployerApplicationsPage() {
   const { user } = useAuth()
@@ -34,53 +26,31 @@ export default function EmployerApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!user) router.push("/login")
-
-    const fetchApplications = async () => {
-      try {
-        setLoading(true)
-        const response = await employerApi.getApplications()
-        setApplications(response.data)
-      } catch (error) {
-        console.error("Error fetching applications:", error)
-        toast({
-          title: "Error",
-          description: "Failed to fetch applications",
-          variant: "destructive",
-        })
-
-        // If API call fails or mock is enabled, use mock data
-        if (isMockEnabled()) {
-          setApplications([
-            { id: "1", name: "John Doe", position: "Frontend Developer", date: "2025-03-01", status: "New" },
-            { id: "2", name: "Jane Smith", position: "UX Designer", date: "2025-02-28", status: "In Review" },
-            { id: "3", name: "Bob Johnson", position: "Data Analyst", date: "2025-02-27", status: "Interviewed" },
-          ])
-        }
-      } finally {
-        setLoading(false)
-      }
+  const fetchApplications = async () => {
+    try {
+      setLoading(true)
+      const response = await employerApi.getApplications()
+      setApplications(response || [])
+    } catch (error) {
+      console.error("Error fetching applications:", error)
+      toast.error("Failed to fetch applications")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchApplications()
-  }, [user, router])
+  }, [])
 
   const handleStatusChange = async (applicationId: string, newStatus: string) => {
     try {
       await employerApi.updateApplicationStatus(applicationId, newStatus)
       fetchApplications()
-      toast({
-        title: "Success",
-        description: "Application status updated successfully",
-      })
+      toast.success("Application status updated successfully")
     } catch (error) {
       console.error("Error updating application status:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update application status",
-        variant: "destructive",
-      })
+      toast.error("Failed to update application status")
     }
   }
 
@@ -114,19 +84,19 @@ export default function EmployerApplicationsPage() {
                       <TableCell>
                         <div className="flex items-center">
                           <User className="mr-2 h-4 w-4" />
-                          {application.name}
+                          {application.applicant_name}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center">
                           <FileText className="mr-2 h-4 w-4" />
-                          {application.position}
+                          {application.job_title}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center">
                           <Calendar className="mr-2 h-4 w-4" />
-                          {application.date}
+                          {new Date(application.created_at).toLocaleDateString()}
                         </div>
                       </TableCell>
                       <TableCell>{application.status}</TableCell>
@@ -139,10 +109,23 @@ export default function EmployerApplicationsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>Schedule Interview</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/employer/applications/${application.id}`)}
+                            >
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(application.id, "interviewed")}
+                            >
+                              Schedule Interview
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">Reject</DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => handleStatusChange(application.id, "rejected")}
+                            >
+                              Reject
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

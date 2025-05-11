@@ -20,6 +20,7 @@ import { ResumeAnalysis } from "@/components/resume-analysis"
 import { ResumeJobMatch } from "@/components/resume-job-match"
 import { Loader2, Plus, Upload, FileText, BarChart2, CheckCircle2 } from "lucide-react"
 import type { Resume } from "@/lib/types"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export default function ResumesPage() {
   const { user } = useAuth()
@@ -32,6 +33,8 @@ export default function ResumesPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [newResumeName, setNewResumeName] = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [resumeToDelete, setResumeToDelete] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) router.push("/login")
@@ -108,15 +111,22 @@ export default function ResumesPage() {
     }
   }
 
-  const handleDeleteResume = async (resumeId: string) => {
+  const handleDeleteClick = (resumeId: string) => {
+    setResumeToDelete(resumeId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteResume = async () => {
+    if (!resumeToDelete) return
+    
     try {
-      const result = await deleteResume(resumeId)
+      const result = await deleteResume(resumeToDelete)
       if (result.success) {
         // Update the local state
-        setResumes(resumes.filter((resume) => resume.id !== resumeId))
+        setResumes(resumes.filter((resume) => resume.id !== resumeToDelete))
 
         // If the deleted resume was selected, clear the selection
-        if (selectedResume && selectedResume.id === resumeId) {
+        if (selectedResume && selectedResume.id === resumeToDelete) {
           setSelectedResume(null)
           setActiveTab("all-resumes")
         }
@@ -135,6 +145,9 @@ export default function ResumesPage() {
         description: "Failed to delete resume",
         variant: "destructive",
       })
+    } finally {
+      setDeleteDialogOpen(false)
+      setResumeToDelete(null)
     }
   }
 
@@ -424,7 +437,7 @@ export default function ResumesPage() {
                           key={resume.id}
                           resume={resume}
                           onSelect={() => handleSelectResume(resume)}
-                          onDelete={() => handleDeleteResume(resume.id)}
+                          onDelete={() => handleDeleteClick(resume.id)}
                           onSetDefault={() => handleSetDefaultResume(resume.id)}
                           onRename={(newName) => handleRenameResume(resume.id, newName)}
                         />
@@ -503,11 +516,7 @@ export default function ResumesPage() {
 
                             <Button
                               variant="destructive"
-                              onClick={() => {
-                                if (confirm("Are you sure you want to delete this resume?")) {
-                                  handleDeleteResume(selectedResume.id)
-                                }
-                              }}
+                              onClick={() => handleDeleteClick(selectedResume.id)}
                             >
                               Delete Resume
                             </Button>
@@ -562,6 +571,16 @@ export default function ResumesPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteResume}
+        title="Delete Resume"
+        description="Are you sure you want to delete this resume? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </ProtectedRoute>
   )
 }

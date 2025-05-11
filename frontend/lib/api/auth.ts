@@ -27,11 +27,16 @@ export interface AuthResponse {
   user: {
     id: string
     email: string
-    name: string
+    name?: string
+    first_name?: string
+    last_name?: string
     role: string
     avatar?: string
     company?: string
     company_id?: string
+    is_active?: boolean
+    created_at?: string
+    date_joined?: string
   }
 }
 
@@ -40,21 +45,26 @@ export interface CsrfResponse {
 }
 
 export interface VerifyResponse {
-  isValid: boolean
+  is_valid: boolean
   user: {
     id: string
     email: string
-    name: string
+    name?: string
+    first_name?: string
+    last_name?: string
     role: string
     avatar?: string
     company?: string
     company_id?: string
+    is_active?: boolean
+    created_at?: string
+    date_joined?: string
   }
 }
 
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await apiClient.post<ApiResponse<AuthResponse>>("/auth/token/", credentials)
+    const response = await apiClient.post<ApiResponse<AuthResponse>>("/auth/login/", credentials)
 
     const { access, refresh, user } = response.data.data
 

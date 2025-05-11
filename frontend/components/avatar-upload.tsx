@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useToast } from "@/components/ui/use-toast"
+// import { useToast } from "@/components/ui/use-toast" // Удаляем старый импорт
+import { toast } from "sonner" // Добавляем импорт sonner
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Upload } from "lucide-react"
@@ -15,30 +16,30 @@ interface AvatarUploadProps {
 }
 
 export function AvatarUpload({ currentAvatar, onAvatarChange, role }: AvatarUploadProps) {
-  const { toast } = useToast()
+  // const { toast } = useToast() // Удаляем использование хука
   const [uploading, setUploading] = useState(false)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploading(true); // Добавим индикацию загрузки
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file) {
+      setUploading(false);
+      return;
+    }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file type",
+      toast.error("Invalid file type", {
         description: "Please upload an image file",
-        variant: "destructive",
       })
+      setUploading(false);
       return
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File too large",
+      toast.error("File too large", {
         description: "Please upload an image smaller than 5MB",
-        variant: "destructive",
       })
+      setUploading(false);
       return
     }
 
@@ -46,26 +47,18 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, role }: AvatarUplo
     formData.append('avatar', file)
 
     try {
-      const response = await userApi.uploadAvatar(role, formData)
+      const response = await userApi.uploadAvatar(formData)
       if (response.status === 'success' && response.data?.avatar) {
         onAvatarChange(response.data.avatar)
-        toast({
-          title: "Success",
-          description: "Avatar updated successfully",
-        })
+        toast.success("Avatar updated successfully")
       } else {
-        toast({
-          title: "Error",
-          description: response.message || "Failed to update avatar",
-          variant: "destructive",
-        })
+        toast.error(response.message || "Failed to update avatar")
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update avatar",
-        variant: "destructive",
-      })
+      console.error("Avatar upload error:", error); // Добавим console.error для отладки
+      toast.error("Failed to update avatar")
+    } finally {
+      setUploading(false); // Убираем индикацию загрузки
     }
   }
 

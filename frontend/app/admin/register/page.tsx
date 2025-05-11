@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { adminApi } from "@/lib/api/admin"
@@ -22,6 +22,8 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { generateRandomPassword } from "@/lib/utils/password"
 import { parseCSV, parseExcel } from "@/lib/utils/file-parser"
+import { isMockEnabled } from "@/lib/utils/config"
+import { mockAdminCompanies } from "@/lib/mock-data/admin"
 
 // Form validation schema
 const formSchema = z.object({
@@ -31,11 +33,21 @@ const formSchema = z.object({
   role: z.string({ required_error: "Please select a user role" }),
   university: z.string().optional(),
   company: z.string().optional(),
+  company_id: z.string().optional(),
   sendWelcomeEmail: z.boolean().default(true),
   activateImmediately: z.boolean().default(true),
 })
 
 type FormValues = z.infer<typeof formSchema>
+
+// Company interface for type safety
+interface AdminCompany {
+  id: string;
+  name: string;
+  industry: string;
+  location: string;
+  verified: boolean;
+}
 
 export default function AdminRegisterPage() {
   const router = useRouter()
@@ -45,7 +57,9 @@ export default function AdminRegisterPage() {
   const [selectedRole, setSelectedRole] = useState<string>("")
   const [useAutoPassword, setUseAutoPassword] = useState(false)
   const [processingFile, setProcessingFile] = useState(false)
-  const [bulkResults, setBulkResults] = useState<{ success: number; failed: number } | null>(null)
+  const [bulkResults, setBulkResults] = useState<{ success: number; failed: number; details?: any[] } | null>(null)
+  const [companies, setCompanies] = useState<{ id: string; name: string; industry: string }[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -55,6 +69,7 @@ export default function AdminRegisterPage() {
     setValue,
     watch,
     formState: { errors },
+    control,
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -64,6 +79,7 @@ export default function AdminRegisterPage() {
       role: "",
       university: "",
       company: "",
+      company_id: "",
       sendWelcomeEmail: true,
       activateImmediately: true,
     },
@@ -92,40 +108,115 @@ export default function AdminRegisterPage() {
     }
   }
 
+  // Fetch companies when role is employer
+  useEffect(() => {
+    if (selectedRole === "employer") {
+      const fetchCompanies = async () => {
+        setLoadingCompanies(true);
+        try {
+          if (isMockEnabled()) {
+            // Use mock data
+            setCompanies(mockAdminCompanies.map((company: AdminCompany) => ({
+              id: company.id,
+              name: company.name,
+              industry: company.industry
+            })));
+          } else {
+            // Fetch real companies from API
+            const response = await adminApi.getCompanies({
+              limit: 100 // Get up to 100 companies
+            });
+            if (response.status === "success" && Array.isArray(response.data)) {
+              setCompanies(response.data.map((company: AdminCompany) => ({
+                id: company.id,
+                name: company.name,
+                industry: company.industry
+              })));
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching companies:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load companies. You may need to create a company first.",
+            variant: "destructive",
+          });
+        } finally {
+          setLoadingCompanies(false);
+        }
+      };
+
+      fetchCompanies();
+    }
+  }, [selectedRole, toast]);
+
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
+    console.log("Submitting user data:", data);
 
     try {
-      const response = await adminApi.createUser(data)
-
-      if (response.status === "success") {
-        setSubmitSuccess(true)
+      if (!data.name) {
         toast({
-          title: "User Created",
-          description: `Successfully created user account for ${data.email}`,
-          variant: "success",
-        })
-        reset()
-        // Reset form after 3 seconds
+          title: "Validation Error",
+          description: "Name is required",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Validate company selection for employers
+      if (data.role === "employer" && !data.company_id) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a company for the employer",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const userData = { ...data };
+      
+      console.log("Sending userData to createUser:", userData);
+
+      const response = await adminApi.createUser(userData);
+      console.log("Create user response:", response);
+
+      if (response.status === 'success') {
+        setSubmitSuccess(true);
+        toast({
+          title: "User Created Successfully",
+          description: `User ${data.name} (${data.email}) has been created with role: ${data.role}`,
+        });
+        
+        if (data.sendWelcomeEmail) {
+          toast({
+            title: "Welcome Email",
+            description: "A welcome email has been sent to the user with login instructions.",
+          });
+        }
+        
+        reset();
         setTimeout(() => {
-          setSubmitSuccess(false)
-        }, 3000)
+          setSubmitSuccess(false);
+        }, 3000);
       } else {
         toast({
           title: "Error",
           description: response.message || "Failed to create user. Please try again.",
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error creating user:", error)
+      console.error("Error creating user:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
@@ -163,7 +254,7 @@ export default function AdminRegisterPage() {
       toast({
         title: "Bulk Import Complete",
         description: `Successfully created ${results.data.success} users. ${results.data.failed} failed.`,
-        variant: results.data.failed > 0 ? "default" : "success",
+        variant: results.data.failed > 0 ? "default" : "default",
       })
 
       // Reset file input
@@ -211,133 +302,221 @@ export default function AdminRegisterPage() {
                     Add a new user to the platform. All fields marked with * are required.
                   </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">
-                        Full Name <span className="text-destructive">*</span>
-                      </Label>
-                      <Input id="name" {...register("name")} />
-                      {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+                {submitSuccess && (
+                  <div className="mx-6 mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-green-800">
+                          User created successfully! You can add another user or return to the dashboard.
+                        </p>
+                      </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">
-                        Email Address <span className="text-destructive">*</span>
-                      </Label>
-                      <Input id="email" type="email" {...register("email")} />
-                      {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="password">
-                          Password <span className="text-destructive">*</span>
+                  </div>
+                )}
+                <CardContent>
+                  <form onSubmit={handleSubmit(onSubmit)}>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">
+                          Name <span className="text-destructive">*</span>
                         </Label>
-                        <div className="flex items-center space-x-2">
-                          <Label htmlFor="auto-password" className="text-sm font-normal">
-                            Auto-generate
+                        <Input id="name" {...register("name")} />
+                        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="email">
+                          Email <span className="text-destructive">*</span>
+                        </Label>
+                        <Input id="email" type="email" {...register("email")} />
+                        {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="password">
+                            Password <span className="text-destructive">*</span>
                           </Label>
-                          <Switch
-                            id="auto-password"
-                            checked={useAutoPassword}
-                            onCheckedChange={handleToggleAutoPassword}
+                          <div className="flex items-center space-x-2">
+                            <Label htmlFor="auto-password" className="text-sm font-normal">
+                              Auto-generate
+                            </Label>
+                            <Switch
+                              id="auto-password"
+                              checked={useAutoPassword}
+                              onCheckedChange={handleToggleAutoPassword}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Input
+                            id="password"
+                            type="text"
+                            {...register("password")}
+                            disabled={useAutoPassword}
+                            className="flex-1"
                           />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={handleGeneratePassword}
+                            disabled={isSubmitting}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="role">
+                          User Role <span className="text-destructive">*</span>
+                        </Label>
+                        <Select onValueChange={handleRoleChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="employer">Employer</SelectItem>
+                            <SelectItem value="campus">Campus Admin</SelectItem>
+                            <SelectItem value="admin">System Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
+                      </div>
+
+                      {selectedRole === "student" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="university">University</Label>
+                          <Input id="university" {...register("university")} />
+                        </div>
+                      )}
+
+                      {selectedRole === "employer" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="company">
+                            Company <span className="text-destructive">*</span>
+                          </Label>
+                          <div className="flex space-x-2">
+                            <div className="flex-1">
+                              {/* Используем Controller с компонентом Select (способ 1) */}
+                              {false && (
+                                <Controller
+                                  name="company_id"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <Select
+                                      onValueChange={(value) => {
+                                        const selectedCompany = companies.find(c => c.id === value);
+                                        field.onChange(value);
+                                        setValue("company", selectedCompany?.name || "");
+                                        console.log("Selected company:", value, selectedCompany?.name);
+                                      }}
+                                      value={field.value}
+                                      disabled={loadingCompanies}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select a company"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {companies.map((company) => (
+                                          <SelectItem key={company.id} value={company.id}>
+                                            {company.name} ({company.industry})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                />
+                              )}
+                              
+                              {/* Используем простой HTML select (способ 2) */}
+                              <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={watch("company_id")}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const selectedCompany = companies.find(c => c.id === value);
+                                  setValue("company_id", value);
+                                  setValue("company", selectedCompany?.name || "");
+                                  console.log("Selected company (html):", value, selectedCompany?.name);
+                                }}
+                                disabled={loadingCompanies}
+                              >
+                                <option value="">{loadingCompanies ? "Loading companies..." : "Select a company"}</option>
+                                {companies.map((company) => (
+                                  <option key={company.id} value={company.id}>
+                                    {company.name} ({company.industry})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => router.push("/admin/companies/new")}
+                              className="whitespace-nowrap"
+                            >
+                              New Company
+                            </Button>
+                          </div>
+                          {watch("company_id") && (
+                            <p className="text-xs text-muted-foreground">
+                              Selected company: {watch("company")}
+                            </p>
+                          )}
+                          {errors.company && <p className="text-sm text-destructive">{errors.company.message}</p>}
+                        </div>
+                      )}
+
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="sendWelcomeEmail"
+                            checked={watch("sendWelcomeEmail")}
+                            onCheckedChange={(checked) => setValue("sendWelcomeEmail", checked as boolean)}
+                          />
+                          <Label htmlFor="sendWelcomeEmail" className="text-sm font-normal">
+                            Send welcome email with login instructions
+                          </Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="activateImmediately"
+                            checked={watch("activateImmediately")}
+                            onCheckedChange={(checked) => setValue("activateImmediately", checked as boolean)}
+                          />
+                          <Label htmlFor="activateImmediately" className="text-sm font-normal">
+                            Activate account immediately
+                          </Label>
                         </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <Input
-                          id="password"
-                          type="text"
-                          {...register("password")}
-                          disabled={useAutoPassword}
-                          className="flex-1"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={handleGeneratePassword}
-                          disabled={isSubmitting}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="role">
-                        User Role <span className="text-destructive">*</span>
-                      </Label>
-                      <Select onValueChange={handleRoleChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="student">Student</SelectItem>
-                          <SelectItem value="employer">Employer</SelectItem>
-                          <SelectItem value="campus">Campus Admin</SelectItem>
-                          <SelectItem value="admin">System Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
-                    </div>
-
-                    {selectedRole === "student" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="university">University</Label>
-                        <Input id="university" {...register("university")} />
-                      </div>
-                    )}
-
-                    {selectedRole === "employer" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="company">Company</Label>
-                        <Input id="company" {...register("company")} />
-                      </div>
-                    )}
-
-                    <div className="space-y-4 pt-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="sendWelcomeEmail"
-                          checked={watch("sendWelcomeEmail")}
-                          onCheckedChange={(checked) => setValue("sendWelcomeEmail", checked as boolean)}
-                        />
-                        <Label htmlFor="sendWelcomeEmail" className="text-sm font-normal">
-                          Send welcome email with login instructions
-                        </Label>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="activateImmediately"
-                          checked={watch("activateImmediately")}
-                          onCheckedChange={(checked) => setValue("activateImmediately", checked as boolean)}
-                        />
-                        <Label htmlFor="activateImmediately" className="text-sm font-normal">
-                          Activate account immediately
-                        </Label>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button variant="outline" type="button" onClick={() => router.push("/admin")}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={isSubmitting} className="bg-vibrant-blue hover:bg-vibrant-blue/90">
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        <>Create User</>
-                      )}
-                    </Button>
-                  </CardFooter>
-                </form>
+                    <CardFooter className="flex justify-between">
+                      <Button variant="outline" type="button" onClick={() => router.push("/admin")}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting} className="bg-vibrant-blue hover:bg-vibrant-blue/90">
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>Create User</>
+                        )}
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </CardContent>
               </Card>
             </TabsContent>
 
@@ -365,7 +544,7 @@ export default function AdminRegisterPage() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-4">
-                      File must include columns: name, email, role (optional: university, company)
+                      File must include columns: first_name, last_name, email, role (optional: university, company)
                     </p>
                   </div>
 
@@ -399,7 +578,8 @@ export default function AdminRegisterPage() {
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="border-b">
-                            <th className="py-2 px-3 text-left">name</th>
+                            <th className="py-2 px-3 text-left">first_name</th>
+                            <th className="py-2 px-3 text-left">last_name</th>
                             <th className="py-2 px-3 text-left">email</th>
                             <th className="py-2 px-3 text-left">role</th>
                             <th className="py-2 px-3 text-left">university</th>
@@ -408,14 +588,16 @@ export default function AdminRegisterPage() {
                         </thead>
                         <tbody>
                           <tr>
-                            <td className="py-2 px-3">John Doe</td>
+                            <td className="py-2 px-3">John</td>
+                            <td className="py-2 px-3">Doe</td>
                             <td className="py-2 px-3">john@example.com</td>
                             <td className="py-2 px-3">student</td>
                             <td className="py-2 px-3">State University</td>
                             <td className="py-2 px-3"></td>
                           </tr>
                           <tr>
-                            <td className="py-2 px-3">Jane Smith</td>
+                            <td className="py-2 px-3">Jane</td>
+                            <td className="py-2 px-3">Smith</td>
                             <td className="py-2 px-3">jane@example.com</td>
                             <td className="py-2 px-3">employer</td>
                             <td className="py-2 px-3"></td>
@@ -424,6 +606,7 @@ export default function AdminRegisterPage() {
                         </tbody>
                       </table>
                     </div>
+                    <p className="text-sm mt-4 text-muted-foreground">Note: The older format with a single 'name' column is still supported and will be automatically split into first_name and last_name.</p>
                     <div className="mt-4">
                       <Button variant="outline" size="sm" className="text-xs">
                         <Download className="h-3 w-3 mr-1" /> Download Template

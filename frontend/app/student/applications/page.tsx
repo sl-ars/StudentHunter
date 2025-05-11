@@ -11,11 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Building, ExternalLink, Loader2, AlertTriangle, XCircle } from "lucide-react"
 import Link from "next/link"
 import ProtectedRoute from "@/components/protected-route"
-import { applicationApi } from "@/lib/api"
+import { applicationsApi } from "@/lib/api/applications"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function ApplicationsPage() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [applications, setApplications] = useState<any[]>([])
@@ -25,13 +25,11 @@ export default function ApplicationsPage() {
   const pageSize = 5 // Number of applications per page
 
   useEffect(() => {
-    if (!user) router.push("/login")
-
     const fetchApplications = async () => {
       try {
         setLoading(true)
-        const response = await applicationApi.getMyApplications()
-        setApplications(response.results || [])
+        const response = await applicationsApi.getApplications()
+        setApplications(response.data?.results || [])
       } catch (error) {
         console.error("Error fetching applications:", error)
         toast({
@@ -44,28 +42,27 @@ export default function ApplicationsPage() {
       }
     }
 
-    if (user) {
+    if (!isLoading && user) {
       fetchApplications()
     }
-  }, [user, router, toast])
+  }, [user, isLoading, router, toast])
 
   const handleCancelApplication = async (applicationId: string) => {
     setCanceling(applicationId)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const response = await applicationsApi.cancelApplication(applicationId)
 
+      if (response.status === "success" && response.data) {
       // Update local state to mark as cancelled
-      setApplications((prev) => prev.map((app) => (app.id === applicationId ? { ...app, status: "cancelled" } : app)))
-      toast({
-        title: "Application Cancelled",
-        description: "Your application has been successfully cancelled.",
-      })
+        setApplications((prev) => prev.map((app) => (app.id === applicationId ? { ...app, status: "canceled" } : app)))
+      } else {
+        console.error("Failed to cancel application (API reported error):", response.message)
+      }
     } catch (error) {
-      console.error("Error cancelling application:", error)
+      console.error("Error in handleCancelApplication:", error)
       toast({
         title: "Error",
-        description: "Failed to cancel application. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -131,14 +128,14 @@ export default function ApplicationsPage() {
                           key={application.id}
                           className={application.status === "cancelled" ? "opacity-50" : ""} // Visual cue for cancelled applications
                         >
-                          <TableCell className="font-medium">{application.job?.title || "Position"}</TableCell>
+                          <TableCell className="font-medium">{application.job_title || "Position"}</TableCell>
                           <TableCell>
                             <div className="flex items-center">
                               <Building className="w-4 h-4 mr-2" />
-                              {application.job?.company || "Company"}
+                              {application.job_company || "Company"}
                             </div>
                           </TableCell>
-                          <TableCell>{new Date(application.appliedAt).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(application.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(application.status)}>
                               {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
@@ -146,7 +143,7 @@ export default function ApplicationsPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Link href={`/jobs/${application.jobId}`}>
+                              <Link href={`/jobs/${application.job}`}>
                                 <Button variant="ghost" size="sm">
                                   <ExternalLink className="w-4 h-4" />
                                 </Button>

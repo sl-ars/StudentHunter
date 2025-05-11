@@ -34,6 +34,12 @@ export default function Header() {
   // This is a placeholder. In a real app, you'd calculate this based on the user's profile completeness
   const profileCompletion = 70
 
+  // Check if current path is a dashboard path
+  const isDashboardPath = user && (
+    pathname === `/${user.role}` || 
+    pathname.startsWith(`/${user.role}/`)
+  )
+
   // Handle scroll effect for iOS-style translucent header
   useEffect(() => {
     const handleScroll = () => {
@@ -91,7 +97,9 @@ export default function Header() {
                   key={item.name}
                   href={item.href}
                   className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                    pathname.startsWith(item.href) && pathname !== "/"
+                    // Don't mark Home as active if we're on a dashboard path
+                    (pathname.startsWith(item.href) && item.href !== "/") || 
+                    (item.href === "/" && pathname === "/" && !isDashboardPath)
                       ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
@@ -120,9 +128,13 @@ export default function Header() {
 
                 <Link href={user.role === "employer" ? "/employer" : `/${user.role}`} className="md:inline-flex hidden">
                   <Button
-                    variant="ghost"
+                    variant={isDashboardPath ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-full text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className={`rounded-full text-sm ${
+                      isDashboardPath 
+                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" 
+                        : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    }`}
                   >
                     <LayoutDashboard className="w-4 h-4 mr-1 text-blue-500 dark:text-blue-400" />
                     <span>Dashboard</span>
@@ -153,14 +165,9 @@ export default function Header() {
                         <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
                       </div>
                     </div>
-                    <div className="p-3 border-b dark:border-gray-700">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Profile Completion</p>
-                      <Progress value={profileCompletion} className="h-1.5 mt-1.5" />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{profileCompletion}% Complete</p>
-                    </div>
                     <div className="p-1">
                       <DropdownMenuItem asChild className="rounded-lg">
-                        <Link href={`/${user.role}/profile`} className="flex items-center cursor-pointer">
+                        <Link href={`/profile`} className="flex items-center cursor-pointer">
                           <User className="mr-2 h-4 w-4 text-gray-500 dark:text-gray-400" />
                           <span>My Profile</span>
                           <ChevronRight className="ml-auto h-4 w-4 text-gray-400 dark:text-gray-500" />
@@ -241,7 +248,9 @@ export default function Header() {
                   key={item.name}
                   href={item.href}
                   className={`px-3 py-2.5 rounded-lg transition-colors ${
-                    pathname === item.href
+                    // Don't mark Home as active if we're on a dashboard path
+                    (pathname === item.href && item.href !== "/") || 
+                    (item.href === "/" && pathname === "/" && !isDashboardPath)
                       ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
@@ -265,8 +274,12 @@ export default function Header() {
                 </Link>
                 <Link href={user.role === "employer" ? "/employer" : `/${user.role}`} onClick={() => setIsMenuOpen(false)}>
                   <Button
-                    variant="outline"
-                    className="w-full justify-start text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    variant={isDashboardPath ? "default" : "outline"}
+                    className={`w-full justify-start ${
+                      isDashboardPath 
+                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800" 
+                        : "text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    }`}
                   >
                     <LayoutDashboard className="w-4 h-4 mr-2 text-blue-500 dark:text-blue-400" />
                     Dashboard

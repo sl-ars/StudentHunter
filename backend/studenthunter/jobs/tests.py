@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Job
+from jobs.models import Job
 from users.models import CustomUser
 
 User = get_user_model()

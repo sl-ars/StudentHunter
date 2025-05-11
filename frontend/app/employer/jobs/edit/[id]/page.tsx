@@ -17,12 +17,16 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
   const { toast } = useToast()
   const jobId = params.id
 
+  // Store the original job data to compare against
+  const [originalJobData, setOriginalJobData] = useState<any>(null);
+
   useEffect(() => {
     const fetchJob = async () => {
       setIsLoading(true)
       try {
         const response = await employerApi.getJob(jobId)
-        setJob(response.data)
+        setJob(response.data) // This is the data for the form to edit
+        setOriginalJobData(response.data) // Store a copy for diffing
       } catch (error) {
         console.error("Error fetching job:", error)
         toast({
@@ -40,10 +44,54 @@ export default function EditJobPage({ params }: { params: { id: string } }) {
     }
   }, [jobId, toast])
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formDataFromForm: any) => {
     setIsSaving(true)
     try {
-      await employerApi.updateJob(jobId, formData)
+      const changedData: Partial<any> = {}; // Using Partial<any> for flexibility, refine if Job type is strictly known here
+
+      // Compare formDataFromForm with originalJobData
+      for (const key in formDataFromForm) {
+        if (Object.prototype.hasOwnProperty.call(formDataFromForm, key)) {
+          const formValue = formDataFromForm[key];
+          const originalValue = originalJobData ? originalJobData[key] : undefined;
+
+          // Handle array comparisons (e.g., requirements, responsibilities, benefits)
+          // The form submits these as arrays of strings (if they have content)
+          if (Array.isArray(formValue) && Array.isArray(originalValue)) {
+            // Simple comparison: convert to sorted JSON strings. Consider more robust deep comparison if needed.
+            const sortedFormValue = [...formValue].sort().join(',');
+            const sortedOriginalValue = [...originalValue].sort().join(',');
+            if (sortedFormValue !== sortedOriginalValue) {
+              changedData[key] = formValue;
+            }
+          } else if (formValue !== originalValue) {
+            // For non-array types, directly compare
+            // This includes ensuring that if a value was empty and is now filled, or vice versa,
+            // or if a value changed (e.g. title, salary_min/max)
+            changedData[key] = formValue;
+          }
+        }
+      }
+      
+      // Check if salary_min or salary_max actually changed from numbers to undefined (cleared input)
+      // The form sends undefined if parsed integer is NaN (e.g. empty string)
+      if (originalJobData && formDataFromForm.salary_min === undefined && originalJobData.salary_min !== null && originalJobData.salary_min !== undefined) {
+        changedData.salary_min = null; // Explicitly set to null to clear it on backend
+      }
+      if (originalJobData && formDataFromForm.salary_max === undefined && originalJobData.salary_max !== null && originalJobData.salary_max !== undefined) {
+        changedData.salary_max = null; // Explicitly set to null to clear it on backend
+      }
+
+      if (Object.keys(changedData).length === 0) {
+        toast({
+          title: "No Changes",
+          description: "No changes were made to the job posting.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      await employerApi.updateJob(jobId, changedData)
       toast({
         title: "Success",
         description: "Job posting updated successfully",

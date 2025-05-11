@@ -9,7 +9,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     // Redirect to the profile page
-    router.push("/student/profile")
+    router.push("/profile")
   }, [router])
 
   return (

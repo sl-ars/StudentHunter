@@ -57,23 +57,23 @@ export default function AdminDashboard() {
     const fetchDashboardStats = async () => {
       try {
         setLoading(true)
-        const response = await adminApi.getAnalytics()
+        const response = await adminApi.getDashboardStats()
 
         setStats({
           users: {
-            total: response.data.users?.total || 0,
+            total: response.data.total_users || 0,
             change: "+20%", // This would come from the API in a real implementation
           },
           jobs: {
-            total: response.jobs?.total || 0,
+            total: response.data.total_jobs || 0,
             change: "+5%", // This would come from the API in a real implementation
           },
           applications: {
-            total: response.applications?.total || 0,
+            total: response.data.total_applications || 0,
             change: "+12%", // This would come from the API in a real implementation
           },
           newUsers: {
-            total: response.users?.total - response.users?.total * 0.92 || 0, // Approximation for demo
+            total: response.data.new_users_today || 0,
             change: "+8%", // This would come from the API in a real implementation
           },
         })

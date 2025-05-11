@@ -20,9 +20,9 @@ export function useProfile({ role }: UseProfileOptions) {
   const fetchProfile = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await userApi.getProfile(role)
-      setProfile(response)
-      return response
+      const response = await userApi.getMyProfile()
+      setProfile(response.data)
+      return response.data
     } catch (error) {
       console.error("Error fetching profile:", error)
       toast({
@@ -34,20 +34,20 @@ export function useProfile({ role }: UseProfileOptions) {
     } finally {
       setLoading(false)
     }
-  }, [role, toast])
+  }, [toast])
 
   // Update profile
-  const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
+  const updateProfile = useCallback(async (data: Partial<UserProfile> & { avatar?: File }) => {
     try {
       setSaving(true)
       setFieldErrors({})
-      const response = await userApi.updateProfile(role, data)
-      setProfile(response)
+      const response = await userApi.updateProfile(data)
+      setProfile(response.data)
       toast({
         title: "Success",
         description: "Profile updated successfully",
       })
-      return response
+      return response.data
     } catch (error: any) {
       console.error("Error updating profile:", error)
       
@@ -71,7 +71,7 @@ export function useProfile({ role }: UseProfileOptions) {
     } finally {
       setSaving(false)
     }
-  }, [role, toast])
+  }, [toast])
 
   // Remove education entry
   const removeEducation = useCallback(async (educationId: string) => {

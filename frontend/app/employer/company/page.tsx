@@ -10,10 +10,19 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { 
+  Select, 
+  SelectContent, 
+  SelectGroup, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
 import ProtectedRoute from "@/components/protected-route"
 import { employerApi } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 import { isMockEnabled } from "@/lib/utils/config"
+import { INDUSTRIES } from "@/lib/constants/industries"
 
 interface CompanyProfile {
   company_name: string
@@ -25,7 +34,7 @@ interface CompanyProfile {
 }
 
 export default function CompanyProfilePage() {
-  const { user } = useAuth()
+  const { user, refreshUserInfo } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [profile, setProfile] = useState<CompanyProfile>({
@@ -46,36 +55,56 @@ export default function CompanyProfilePage() {
       try {
         setLoading(true)
         const response = await employerApi.getCompanyProfile()
-
-        setProfile({
-          company_name: response.data.company_name || "",
-          industry: response.data.industry || "",
-          website: response.data.website || "",
-          description: response.data.description || "",
-          company: response.data.company || "",
-          company_id: response.data.company_id || "",
-        })
-      } catch (error) {
-        console.error("Error fetching company profile:", error)
-
-        // If API call fails or mock is enabled, use mock data
-        if (isMockEnabled()) {
+        
+        // Add additional safety check for data
+        if (response && response.data) {
+          const companyData = response.data as any; // Type cast to any to avoid property access errors
           setProfile({
-            company_name: "TechCorp Inc.",
-            industry: "Technology",
-            website: "https://techcorp.com",
-            description: "TechCorp is a leading technology company...",
-            company: "TechCorp Inc.",
-            company_id: "techcorp-1",
+            company_name: companyData.company_name || "",
+            industry: companyData.industry || "",
+            website: companyData.website || "",
+            description: companyData.description || "",
+            company: companyData.company || "",
+            company_id: companyData.company_id || "",
+          })
+        } else {
+          console.warn("Company profile data was undefined or incomplete, using empty values")
+          // Set default values if data is missing
+          setProfile({
+            company_name: "",
+            industry: "",
+            website: "",
+            description: "",
+            company: "",
+            company_id: "",
           })
         }
+      } catch (error) {
+        console.error("Error fetching company profile:", error)
+        
+        // Set default empty values on error
+        setProfile({
+          company_name: "",
+          industry: "",
+          website: "",
+          description: "",
+          company: "",
+          company_id: "",
+        })
+        
+        // Show error toast
+        toast({
+          title: "Error loading profile",
+          description: "Could not load company profile. Using empty form.",
+          variant: "destructive",
+        })
       } finally {
         setLoading(false)
       }
     }
 
     fetchCompanyProfile()
-  }, [user, router])
+  }, [user, router, toast])
 
   const handleChange = (field: keyof CompanyProfile, value: string) => {
     setProfile((prev) => ({
@@ -98,10 +127,39 @@ export default function CompanyProfilePage() {
       const response = await employerApi.updateCompanyProfile(profileData)
       console.log('Profile update response:', response)
 
-      toast({
-        title: "Profile updated",
-        description: "Your company profile has been successfully updated.",
-      })
+      // Update profile if we received data from the server
+      if (response && response.data) {
+        const companyData = response.data;
+        
+        // Update local profile with server data
+        setProfile({
+          company_name: companyData.name || "", // in Company model the field is called name
+          industry: companyData.industry || "",
+          website: companyData.website || "",
+          description: companyData.description || "",
+          company: companyData.name || "",
+          company_id: companyData.id || "",
+        });
+
+        // Refresh user context data with updated company info
+        console.log('Refreshing user context with new company data...');
+        await refreshUserInfo();
+        console.log('User context refreshed. Current user data:', user);
+        
+        // Show success notification
+        toast({
+          title: "Profile updated successfully! ✅",
+          description: "Your company profile has been updated and all related data refreshed.",
+          variant: "default",
+        })
+      } else {
+        console.warn('Update response did not contain data:', response);
+        toast({
+          title: "Profile updated",
+          description: "Your company profile has been updated.",
+          variant: "default",
+        })
+      }
     } catch (error) {
       console.error('Error updating profile:', error)
       toast({
@@ -138,12 +196,23 @@ export default function CompanyProfilePage() {
                 </div>
                 <div>
                   <Label htmlFor="industry">Industry</Label>
-                  <Input
-                    id="industry"
+                  <Select
                     value={profile.industry}
-                    onChange={(e) => handleChange("industry", e.target.value)}
-                    required
-                  />
+                    onValueChange={(value) => handleChange("industry", value)}
+                  >
+                    <SelectTrigger id="industry" className="w-full">
+                      <SelectValue placeholder="Select industry" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {INDUSTRIES.map((industry) => (
+                          <SelectItem key={industry} value={industry}>
+                            {industry}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="website">Website</Label>

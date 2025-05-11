@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { FileText, Upload, X } from "lucide-react"
 import { userApi } from "@/lib/api/user"
 import { useToast } from "@/components/ui/use-toast"
+import {resumeApi} from "@/lib/api";
 
 interface ResumeUploadProps {
   onUploadComplete?: (url: string) => void
@@ -30,7 +31,7 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
       setIsUploading(true)
 
       try {
-        const response = await userApi.uploadResume(file)
+        const response = await resumeApi.uploadResume(file)
         if (response.status === "success") {
           toast({
             title: "Success",

@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from .managers import CustomUserManager
+
+from core.storage import PublicAssetStorage
+# from jobs.models import Job  # Remove this import
+from users.managers import CustomUserManager
 from users.storage import AvatarStorage, ResumeStorage
 import boto3
 from django.conf import settings
@@ -16,12 +19,15 @@ class CustomUser(AbstractUser):
         ('admin', 'Admin'),
     ]
 
+    class Meta:
+        app_label = 'users'
+
     username = None
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     phone = models.CharField(max_length=20, blank=True, null=True)
-    avatar = models.ImageField(storage=AvatarStorage(), upload_to="avatars/", blank=True, null=True, help_text="Profile picture")
+    avatar = models.ImageField(storage=PublicAssetStorage(), upload_to="avatars/", blank=True, null=True, help_text="Profile picture")
     university = models.CharField(max_length=255, blank=True, null=True, default="")
     company = models.CharField(max_length=255, blank=True, null=True, default="")
     company_id = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -40,8 +46,10 @@ class CustomUser(AbstractUser):
 class StudentProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="student_profile")
     bio = models.TextField(blank=True, null=True)
-    skills = models.JSONField(blank=True, null=True)
+    skills = models.JSONField(blank=True, null=True, default=list)
+    achievements = models.JSONField(blank=True, null=True, default=list)
     resume = models.FileField(upload_to="resumes/", null=True, blank=True)
+    saved_jobs = models.ManyToManyField('jobs.Job', blank=True, related_name="saved_by_students")
 
     def __str__(self):
         return f"Student Profile: {self.user.email}"
@@ -64,35 +72,7 @@ class Resume(models.Model):
             self.name = self.file.name
         super().save(*args, **kwargs)
 
-    def get_resume_url(self):
-        """Generates a signed S3 URL for secure resume download"""
-        if not self.file or not self.file.name:
-            return None
 
-        try:
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_S3_REGION_NAME,
-            )
-          
-            s3_key = f"resumes/{self.file.name}"
-
-            signed_url = s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
-                    "Key": s3_key
-                },
-                ExpiresIn=600,  # 10 minutes expiration
-                HttpMethod="GET",
-            )
-
-            return signed_url
-
-        except (NoCredentialsError, ClientError):
-            return None
 
 
 class Education(models.Model):
@@ -128,13 +108,14 @@ class Experience(models.Model):
 
 class EmployerProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="employer_profile")
-    company_name = models.CharField(max_length=255)
     industry = models.CharField(max_length=100)
     website = models.URLField(blank=True, null=True)
     description = models.TextField(blank=True)
+    company = models.ForeignKey('companies.Company', on_delete=models.SET_NULL, null=True, blank=True, related_name="employer_profiles")
 
     def __str__(self):
-        return f"Employer: {self.company_name}"
+        company_name_str = self.company.name if self.company else "No Company Assigned"
+        return f"Employer Profile for: {self.user.email} ({company_name_str})"
 
 
 class CampusProfile(models.Model):
@@ -145,4 +126,36 @@ class CampusProfile(models.Model):
 
     def __str__(self):
         return f"Campus: {self.university}"
+
+
+class UserSettings(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='settings')
+    email_notifications = models.BooleanField(default=True)
+    push_notifications = models.BooleanField(default=True)
+    two_factor_auth = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'User Settings'
+        verbose_name_plural = 'User Settings'
+
+    def __str__(self):
+        return f'Settings for {self.user.email}'
+
+class CompanySettings(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='company_settings')
+    company_name = models.CharField(max_length=255)
+    company_website = models.URLField(blank=True, null=True)
+    company_description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Company Settings'
+        verbose_name_plural = 'Company Settings'
+
+    def __str__(self):
+        return f'Company settings for {self.user.email}'
+
 

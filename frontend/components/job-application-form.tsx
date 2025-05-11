@@ -1,130 +1,169 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { jobApi } from "@/lib/api/jobs"
+import { resumeApi } from "@/lib/api/resume"
+import type { JobApplicationClientPayload } from "@/lib/api/jobs"
 import { useToast } from "@/hooks/use-toast"
 
+// Define a type for the resume objects passed in props
+interface UserResume {
+  id: string;
+  file_name: string; // Or any other property you use for display
+  name?: string; // name might be used by resumeApi
+}
+
 interface JobApplicationFormProps {
-  jobId?: string
-  onSubmit?: (data: any) => void
+  jobId: string; 
+  userResumes?: UserResume[]; // Make userResumes prop optional
+  onSubmit?: (data: JobApplicationClientPayload) => void
   isLoading?: boolean
   standalone?: boolean
 }
 
 export function JobApplicationForm({
   jobId,
+  userResumes: propUserResumes, // Rename to avoid conflict with state
   onSubmit,
   isLoading = false,
   standalone = false,
 }: JobApplicationFormProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    coverLetter: "",
-    resume: null as File | null,
-    resumeUrl: "",
+  const [formData, setFormData] = useState<Omit<JobApplicationClientPayload, 'resume_id'> & { selectedResumeId: string; agreeToTerms: boolean; notes: string; cover_letter: string }>({
+    cover_letter: "",
+    selectedResumeId: "", 
+    notes: "",            
     agreeToTerms: false,
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({})
   const { toast } = useToast()
+  const [internalResumes, setInternalResumes] = useState<UserResume[]>([])
+  const [isFetchingResumes, setIsFetchingResumes] = useState<boolean>(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  useEffect(() => {
+    // Fetch resumes only if not provided via props or if prop is empty
+    if (!propUserResumes || propUserResumes.length === 0) {
+      const fetchResumes = async () => {
+        setIsFetchingResumes(true)
+        try {
+          const response = await resumeApi.getUserResumes()
+          if (response.status === "success" && response.data) {
+            // Adapt fetched data to UserResume type if necessary
+            const adaptedResumes = response.data.map(r => ({
+              id: r.id,
+              file_name: r.name || r.id, // Use name from API, fallback to id
+              name: r.name
+            })); 
+            setInternalResumes(adaptedResumes)
+            // If there's only one resume, select it by default
+            if (adaptedResumes.length === 1) {
+              setFormData(prev => ({ ...prev, selectedResumeId: adaptedResumes[0].id }));
+            }
+          } else {
+            toast({
+              title: "Failed to load resumes",
+              description: response.message || "Could not fetch your resumes.",
+              variant: "destructive",
+            })
+          }
+        } catch (error) {
+          console.error("Error fetching resumes:", error)
+          toast({
+            title: "Error fetching resumes",
+            description: "An unexpected error occurred while fetching your resumes.",
+            variant: "destructive",
+          })
+        }
+        setIsFetchingResumes(false)
+      }
+      fetchResumes()
+    }
+  }, [propUserResumes, toast]) // Depend on propUserResumes and toast
+
+  // Auto-select first resume if propUserResumes is provided and has one item, and nothing is selected
+  useEffect(() => {
+    if (propUserResumes && propUserResumes.length === 1 && !formData.selectedResumeId) {
+      setFormData(prev => ({ ...prev, selectedResumeId: propUserResumes[0].id }));
+    }
+  }, [propUserResumes, formData.selectedResumeId]);
+
+  // Determine which list of resumes to use
+  const availableResumes = propUserResumes && propUserResumes.length > 0 ? propUserResumes : internalResumes;
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement> 
+  ) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-    // Clear error when field is edited
     if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[name]
-        return newErrors
-      })
+      setErrors((prev) => ({ ...prev, [name]: undefined }))
+    }
+  }
+
+  // Use onValueChange from shadcn Select component
+  const handleResumeSelectChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, selectedResumeId: value }))
+    if (errors.selectedResumeId) {
+      setErrors((prev) => ({ ...prev, selectedResumeId: undefined }))
     }
   }
 
   const handleCheckboxChange = (checked: boolean) => {
     setFormData((prev) => ({ ...prev, agreeToTerms: checked }))
     if (errors.agreeToTerms) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors.agreeToTerms
-        return newErrors
-      })
-    }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
-    setFormData((prev) => ({ ...prev, resume: file }))
-    if (errors.resume) {
-      setErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors.resume
-        return newErrors
-      })
+      setErrors((prev) => ({ ...prev, agreeToTerms: undefined }))
     }
   }
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-    if (!formData.name.trim()) newErrors.name = "Name is required"
-    if (!formData.email.trim()) newErrors.email = "Email is required"
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid"
-    if (!formData.phone.trim()) newErrors.phone = "Phone number is required"
-    if (!formData.coverLetter.trim()) newErrors.coverLetter = "Cover letter is required"
-    if (!formData.resume && !formData.resumeUrl) newErrors.resume = "Resume is required"
+    const newErrors: Record<string, string | undefined> = {}
+    if (!formData.cover_letter.trim()) newErrors.cover_letter = "Cover letter is required"
+    if (!formData.selectedResumeId) newErrors.selectedResumeId = "Please select a resume"
     if (!formData.agreeToTerms) newErrors.agreeToTerms = "You must agree to the terms"
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    return Object.values(newErrors).every(error => error === undefined)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
 
-    if (onSubmit) {
-      onSubmit(formData)
-      return
+    const applicationPayload: JobApplicationClientPayload = {
+      cover_letter: formData.cover_letter,
+      resume_id: formData.selectedResumeId,
+      notes: formData.notes.trim() ? formData.notes : undefined, 
     }
 
-    if (!jobId) {
-      toast({
-        title: "Error",
-        description: "Job ID is required",
-        variant: "destructive",
-      })
+    if (onSubmit) {
+      onSubmit(applicationPayload)
       return
     }
 
     try {
-      await jobApi.applyToJob(jobId, formData)
+      await jobApi.applyToJob(jobId, applicationPayload)
       toast({
         title: "Application submitted",
         description: "Your application has been successfully submitted.",
       })
-      // Reset form
       setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        coverLetter: "",
-        resume: null,
-        resumeUrl: "",
+        cover_letter: "",
+        selectedResumeId: "",
+        notes: "",
         agreeToTerms: false,
       })
+      setErrors({})
     } catch (error) {
       console.error("Error applying to job:", error)
+      const errorMessage = error instanceof Error ? error.message : "There was an error submitting your application. Please try again."
       toast({
         title: "Application failed",
-        description: "There was an error submitting your application. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -135,70 +174,61 @@ export function JobApplicationForm({
       {standalone && <div className="text-xl font-semibold mb-4">Apply for this Position</div>}
 
       <div className="space-y-2">
-        <Label htmlFor="name">Full Name</Label>
-        <Input
-          id="name"
-          name="name"
-          value={formData.name}
-          onChange={handleChange}
-          placeholder="John Doe"
-          className={errors.name ? "border-destructive" : ""}
-        />
-        {errors.name && <p className="text-destructive text-sm">{errors.name}</p>}
+        <Label htmlFor="selectedResumeId">Your Resume</Label>
+        <Select
+          value={formData.selectedResumeId}
+          onValueChange={handleResumeSelectChange}
+          disabled={isLoading || isFetchingResumes || availableResumes.length === 0}
+        >
+          <SelectTrigger 
+            className={`w-full ${errors.selectedResumeId ? "border-destructive" : ""}`}
+            id="selectedResumeId"
+          >
+            <SelectValue placeholder="-- Select a Resume --" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableResumes.map((resume) => (
+              <SelectItem key={resume.id} value={resume.id}>
+                {resume.file_name || resume.name || `Resume ID: ${resume.id}`} 
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.selectedResumeId && <p className="text-destructive text-sm">{errors.selectedResumeId}</p>}
+        {(isFetchingResumes) && (
+            <p className="text-sm text-muted-foreground">Loading your resumes...</p>
+        )}
+        {!isFetchingResumes && availableResumes.length === 0 && (
+            <p className="text-sm text-muted-foreground">You have no resumes. Please upload one to your profile.</p>
+        )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          value={formData.email}
-          onChange={handleChange}
-          placeholder="john.doe@example.com"
-          className={errors.email ? "border-destructive" : ""}
-        />
-        {errors.email && <p className="text-destructive text-sm">{errors.email}</p>}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone Number</Label>
-        <Input
-          id="phone"
-          name="phone"
-          value={formData.phone}
-          onChange={handleChange}
-          placeholder="(123) 456-7890"
-          className={errors.phone ? "border-destructive" : ""}
-        />
-        {errors.phone && <p className="text-destructive text-sm">{errors.phone}</p>}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="resume">Resume</Label>
-        <Input
-          id="resume"
-          name="resume"
-          type="file"
-          accept=".pdf,.doc,.docx"
-          onChange={handleFileChange}
-          className={errors.resume ? "border-destructive" : ""}
-        />
-        {errors.resume && <p className="text-destructive text-sm">{errors.resume}</p>}
-        <p className="text-xs text-muted-foreground">Accepted formats: PDF, DOC, DOCX</p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="coverLetter">Cover Letter</Label>
+        <Label htmlFor="cover_letter">Cover Letter</Label>
         <Textarea
-          id="coverLetter"
-          name="coverLetter"
-          value={formData.coverLetter}
+          id="cover_letter"
+          name="cover_letter" 
+          value={formData.cover_letter}
           onChange={handleChange}
           placeholder="Tell us why you're a good fit for this position..."
-          className={`min-h-[120px] ${errors.coverLetter ? "border-destructive" : ""}`}
+          className={`min-h-[120px] ${errors.cover_letter ? "border-destructive" : ""}`}
+          disabled={isLoading || isFetchingResumes}
         />
-        {errors.coverLetter && <p className="text-destructive text-sm">{errors.coverLetter}</p>}
+        {errors.cover_letter && <p className="text-destructive text-sm">{errors.cover_letter}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="notes">Additional Notes (Optional)</Label>
+        <Textarea
+          id="notes"
+          name="notes" 
+          value={formData.notes}
+          onChange={handleChange}
+          placeholder="Any additional information for the employer..."
+          className={`min-h-[80px] ${errors.notes ? "border-destructive" : ""}`}
+          disabled={isLoading || isFetchingResumes}
+        />
+        {errors.notes && <p className="text-destructive text-sm">{errors.notes}</p>}
       </div>
 
       <div className="flex items-center space-x-2">
@@ -206,16 +236,19 @@ export function JobApplicationForm({
           id="agreeToTerms"
           checked={formData.agreeToTerms}
           onCheckedChange={handleCheckboxChange}
-          className={errors.agreeToTerms ? "border-destructive" : ""}
+          className={errors.agreeToTerms ? "border-destructive" : ""} 
+          disabled={isLoading || isFetchingResumes}
         />
-        <Label htmlFor="agreeToTerms" className="text-sm">
+        <Label htmlFor="agreeToTerms" className={`text-sm ${errors.agreeToTerms ? "text-destructive" : ""}`}>
           I agree to the terms and conditions and privacy policy
         </Label>
       </div>
-      {errors.agreeToTerms && <p className="text-destructive text-sm">{errors.agreeToTerms}</p>}
+      {errors.agreeToTerms && !formData.agreeToTerms && (
+        <p className="text-destructive text-sm">{errors.agreeToTerms}</p>
+      )}
 
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Submitting..." : "Submit Application"}
+      <Button type="submit" disabled={isLoading || isFetchingResumes || availableResumes.length === 0} className="w-full">
+        {isLoading || isFetchingResumes ? "Submitting..." : "Submit Application"}
       </Button>
     </form>
   )

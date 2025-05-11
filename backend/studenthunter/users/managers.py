@@ -5,6 +5,8 @@ class CustomUserManager(BaseUserManager):
         if not email:
             raise ValueError("The Email field is required")
         email = self.normalize_email(email)
+        # Ensure role is provided or default is used correctly if create_user is called directly
+        # extra_fields.setdefault('role', 'student') # Redundant if model field has default
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -13,4 +15,13 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("role", "admin") # Explicitly set role for superuser
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+        if extra_fields.get("role") != "admin":
+             raise ValueError("Superuser must have role='admin'.")
+
         return self.create_user(email, password, **extra_fields)

@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Bookmark, BookmarkCheck, MapPin, Building, Calendar, Clock, Briefcase } from "lucide-react"
-import { saveJob, unsaveJob } from "@/app/actions/job-actions"
+import { jobApi, saveJob, unsaveJob } from "@/lib/api/jobs"
+import { useToast } from "@/components/ui/use-toast"
 import { formatDistanceToNow } from "date-fns"
 import { QuickApplyButton } from "./quick-apply-button"
 
@@ -27,9 +28,12 @@ interface JobCardProps {
     postedAt?: string
     postedDate?: string
     deadline?: string
-    isSaved?: boolean
+    is_saved?: boolean
     isQuickApply?: boolean
     tags?: string[]
+    industry?: string
+    salary_min?: number
+    salary_max?: number
   }
   showActions?: boolean
   showDescription?: boolean
@@ -44,34 +48,44 @@ export function JobCard({
   showCompanyLink = true,
   className = "",
 }: JobCardProps) {
-  const [isSaved, setIsSaved] = useState(job.isSaved || false)
+  const [isSavedState, setIsSavedState] = useState(job.is_saved || false)
   const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
   const handleSaveToggle = async () => {
     setIsLoading(true)
     try {
-      if (isSaved) {
-        await unsaveJob(job.id)
-        setIsSaved(false)
+      let response;
+      if (isSavedState) {
+        response = await jobApi.unsaveJob(job.id)
+        if (response.status === "success") {
+          setIsSavedState(false)
+          toast({ title: "Success", description: "Job unsaved." })
+        } else {
+          toast({ title: "Error", description: response.message || "Failed to unsave job.", variant: "destructive" })
+        }
       } else {
-        await saveJob(job.id)
-        setIsSaved(true)
+        response = await jobApi.saveJob(job.id)
+        if (response.status === "success") {
+          setIsSavedState(true)
+          toast({ title: "Success", description: "Job saved!" })
+        } else {
+          toast({ title: "Error", description: response.message || "Failed to save job.", variant: "destructive" })
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling save status:", error)
+      toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Safely format the posted time with fallback
   const getPostedTimeAgo = () => {
     try {
-      // Use postedAt if available, otherwise try postedDate
       const dateString = job.postedAt || job.postedDate
       if (!dateString) return "Recently posted"
       
-      // Check if the date is valid before formatting
       const date = new Date(dateString)
       if (isNaN(date.getTime())) return "Recently posted"
       
@@ -124,7 +138,7 @@ export function JobCard({
               disabled={isLoading}
               className="text-muted-foreground hover:text-primary"
             >
-              {isSaved ? (
+              {isSavedState ? (
                 <BookmarkCheck className="h-5 w-5 text-primary" />
               ) : (
                 <Bookmark className="h-5 w-5" />
@@ -139,10 +153,22 @@ export function JobCard({
             <Briefcase className="h-3 w-3 mr-1" />
             {job.type}
           </Badge>
-          {job.salary && (
+          {(job.salary_min !== undefined || job.salary_max !== undefined || job.salary) && (
             <Badge variant="outline" className="flex items-center">
               <Clock className="h-3 w-3 mr-1" />
-              {job.salary}
+              {job.salary_min !== undefined && job.salary_max !== undefined
+                ? `${job.salary_min} - ${job.salary_max}`
+                : job.salary_min !== undefined
+                  ? `From ${job.salary_min}`
+                  : job.salary_max !== undefined
+                    ? `Up to ${job.salary_max}`
+                    : job.salary}
+            </Badge>
+          )}
+          {job.industry && (
+            <Badge variant="outline" className="flex items-center">
+              <Briefcase className="h-3 w-3 mr-1" />
+              {job.industry}
             </Badge>
           )}
           <Badge variant="outline" className="flex items-center">

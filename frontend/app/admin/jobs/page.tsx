@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { jobsApi } from "@/lib/api/jobs"
 import { useToast } from "@/hooks/use-toast"
 import { MoreHorizontal, Plus, Search, RefreshCw } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export default function AdminJobsPage() {
   const [jobs, setJobs] = useState<any[]>([])
@@ -21,6 +22,8 @@ export default function AdminJobsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [jobToDelete, setJobToDelete] = useState<string | null>(null)
   const { toast } = useToast()
 
   const fetchJobs = async (page = 1, search = "") => {
@@ -31,8 +34,15 @@ export default function AdminJobsPage() {
         limit: 10,
         search,
       })
-      setJobs(response.data.results)
-      setTotalPages(Math.ceil(response.data.count / 10))
+      
+      // The response now has a standard format with data.results
+      if (response && response.data && response.data.results) {
+        setJobs(response.data.results);
+        setTotalPages(Math.ceil(response.data.count / 10));
+      } else {
+        setJobs([]);
+        setTotalPages(1);
+      }
     } catch (error) {
       console.error("Error fetching jobs:", error)
       toast({
@@ -40,6 +50,8 @@ export default function AdminJobsPage() {
         description: "Failed to load jobs",
         variant: "destructive",
       })
+      setJobs([]);
+      setTotalPages(1);
     } finally {
       setIsLoading(false)
     }
@@ -59,23 +71,31 @@ export default function AdminJobsPage() {
     fetchJobs(currentPage, searchQuery)
   }
 
-  const handleDeleteJob = async (jobId: string) => {
-    if (window.confirm("Are you sure you want to delete this job posting?")) {
-      try {
-        await jobsApi.deleteJob(jobId)
-        toast({
-          title: "Success",
-          description: "Job deleted successfully",
-        })
-        fetchJobs(currentPage, searchQuery)
-      } catch (error) {
-        console.error("Error deleting job:", error)
-        toast({
-          title: "Error",
-          description: "Failed to delete job",
-          variant: "destructive",
-        })
-      }
+  const handleDeleteClick = (jobId: string) => {
+    setJobToDelete(jobId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteJob = async () => {
+    if (!jobToDelete) return
+    
+    try {
+      await jobsApi.deleteJob(jobToDelete)
+      toast({
+        title: "Success",
+        description: "Job deleted successfully",
+      })
+      fetchJobs(currentPage, searchQuery)
+    } catch (error) {
+      console.error("Error deleting job:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete job",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+      setJobToDelete(null)
     }
   }
 
@@ -164,14 +184,18 @@ export default function AdminJobsPage() {
                     {jobs.length > 0 ? (
                       jobs.map((job) => (
                         <TableRow key={job.id}>
-                          <TableCell className="font-medium">{job.title}</TableCell>
-                          <TableCell>{job.company.name}</TableCell>
-                          <TableCell>{job.location}</TableCell>
-                          <TableCell>{job.type}</TableCell>
+                          <TableCell className="font-medium">{job.title || 'Untitled'}</TableCell>
+                          <TableCell>{job.company_name || job.company || 'Unknown Company'}</TableCell>
+                          <TableCell>{job.location || 'Remote'}</TableCell>
+                          <TableCell>{job.type || 'Not specified'}</TableCell>
                           <TableCell>
-                            <Badge variant={job.status === "Active" ? "success" : "secondary"}>{job.status}</Badge>
+                            <Badge variant={(job.status && job.status === "Active") ? "secondary" : "outline"}>
+                              {job.status || 'Unknown'}
+                            </Badge>
                           </TableCell>
-                          <TableCell>{new Date(job.postedAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {job.posted_date ? new Date(job.posted_date).toLocaleDateString() : 'Unknown date'}
+                          </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -187,7 +211,7 @@ export default function AdminJobsPage() {
                                 <DropdownMenuItem asChild>
                                   <Link href={`/admin/jobs/edit/${job.id}`}>Edit</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeleteJob(job.id)}>Delete</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteClick(job.id)} className="text-red-600">Delete</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -229,6 +253,17 @@ export default function AdminJobsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteJob}
+        title="Delete Job Posting"
+        description="Are you sure you want to delete this job posting? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   )
 }

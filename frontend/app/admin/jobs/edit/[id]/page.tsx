@@ -8,14 +8,23 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { jobsApi } from "@/lib/api/jobs"
 import { JobPostingForm } from "@/components/job-posting-form"
 import { useToast } from "@/hooks/use-toast"
+import React from "react"
+import { Trash2 } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
-export default function AdminEditJobPage({ params }: { params: { id: string } }) {
+export default function AdminEditJobPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  // Unwrap params using React.use() for Next.js 15 compatibility
+  const resolvedParams = typeof params === 'object' && !('then' in params) 
+    ? params 
+    : React.use(params as Promise<{ id: string }>)
+  
   const [job, setJob] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const jobId = params.id
+  const jobId = resolvedParams.id
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -64,6 +73,26 @@ export default function AdminEditJobPage({ params }: { params: { id: string } })
   const handleCancel = () => {
     router.back()
   }
+  
+  const handleDelete = async () => {
+    try {
+      await jobsApi.deleteJob(jobId)
+      toast({
+        title: "Success",
+        description: "Job deleted successfully",
+      })
+      router.push("/admin/jobs")
+    } catch (error) {
+      console.error("Error deleting job:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete job",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+    }
+  }
 
   return (
     <div className="container py-6 space-y-6">
@@ -72,9 +101,18 @@ export default function AdminEditJobPage({ params }: { params: { id: string } })
           <h1 className="text-2xl font-bold tracking-tight">Admin: Edit Job Posting</h1>
           <p className="text-muted-foreground">Update the details of this job posting</p>
         </div>
-        <Button variant="outline" onClick={handleCancel}>
-          Cancel
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Job
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -113,6 +151,17 @@ export default function AdminEditJobPage({ params }: { params: { id: string } })
           )}
         </CardContent>
       </Card>
+      
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        title="Delete Job Posting"
+        description="Are you sure you want to delete this job posting? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   )
 }

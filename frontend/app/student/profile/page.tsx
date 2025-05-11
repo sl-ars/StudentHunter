@@ -31,9 +31,7 @@ import {
 import ProtectedRoute from "@/components/protected-route"
 import { Progress } from "@/components/ui/progress"
 import { userApi } from "@/lib/api/user"
-import { useToast } from "@/components/ui/use-toast"
-import { ResumeUpload } from "@/components/resume-upload"
-import { getUserResumes, deleteResume } from "@/app/actions/resume-actions"
+import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -45,18 +43,17 @@ import { ResumeList } from "@/components/resume-list"
 export default function StudentProfilePage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
   const [profileData, setProfileData] = useState<UserProfile | null>(null)
+  const [initialProfileData, setInitialProfileData] = useState<UserProfile | null>(null)
   const [profileCompletion, setProfileCompletion] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("personal")
-  const [resumes, setResumes] = useState<any[]>([])
-  const [loadingResumes, setLoadingResumes] = useState(false)
-  const [deletingResume, setDeletingResume] = useState<string | null>(null)
   const [expandedExperience, setExpandedExperience] = useState<number | null>(null)
   const [expandedEducation, setExpandedEducation] = useState<number | null>(null)
   const [missingFields, setMissingFields] = useState<string[]>([])
+  const [skillsInputValue, setSkillsInputValue] = useState<string>("")
+  const [achievementsInputValue, setAchievementsInputValue] = useState<string>("")
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -66,10 +63,15 @@ export default function StudentProfilePage() {
     const fetchProfile = async () => {
       try {
         setLoading(true)
-        const response = await userApi.getProfile(USER_ROLES.STUDENT)
+        const response = await userApi.getMyProfile()
 
-        const profileData = response.data
-        setProfileData(profileData)
+        const profileDataFromApi = response.data
+        setProfileData(profileDataFromApi)
+        setInitialProfileData(profileDataFromApi)
+        if (profileDataFromApi) {
+          setSkillsInputValue(profileDataFromApi.skills?.join(", ") || "")
+          setAchievementsInputValue(profileDataFromApi.achievements?.join("\n") || "")
+        }
 
         // Calculate profile completion and identify missing fields
         const requiredFields = [
@@ -82,7 +84,6 @@ export default function StudentProfilePage() {
           { name: "skills", label: "Skills" },
           { name: "experience", label: "Work Experience" },
           { name: "achievements", label: "Achievements" },
-          { name: "resume", label: "Resume" },
         ]
 
         const missing: string[] = []
@@ -90,38 +91,31 @@ export default function StudentProfilePage() {
 
         requiredFields.forEach((field) => {
           if (field.name === "education") {
-            if (profileData?.education && profileData?.education.length > 0 && profileData?.education[0]?.university) {
+            if (profileDataFromApi?.education && profileDataFromApi?.education.length > 0 && profileDataFromApi?.education[0]?.university) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "skills") {
-            if (profileData?.skills && profileData.skills.length > 0) {
+            if (profileDataFromApi?.skills && profileDataFromApi.skills.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "experience") {
-            if (profileData?.experience && profileData.experience.length > 0 && profileData.experience[0]?.company) {
+            if (profileDataFromApi?.experience && profileDataFromApi.experience.length > 0 && profileDataFromApi.experience[0]?.company) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else if (field.name === "achievements") {
-            if (profileData?.achievements && profileData.achievements.length > 0) {
-              completedCount++
-            } else {
-              missing.push(field.label)
-            }
-          } else if (field.name === "resume") {
-            // Will be checked when resumes are loaded
-            if (resumes.length > 0) {
+            if (profileDataFromApi?.achievements && profileDataFromApi.achievements.length > 0) {
               completedCount++
             } else {
               missing.push(field.label)
             }
           } else {
-            if (profileData?.[field.name]) {
+            if (profileDataFromApi?.[field.name as keyof UserProfile]) {
               completedCount++
             } else {
               missing.push(field.label)
@@ -133,134 +127,66 @@ export default function StudentProfilePage() {
         setProfileCompletion((completedCount / requiredFields.length) * 100)
       } catch (error) {
         console.error("Error fetching profile:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load profile data",
-          variant: "destructive",
-        })
+        toast.error("Failed to load profile data")
       } finally {
         setLoading(false)
       }
     }
 
-    const fetchResumes = async () => {
-      try {
-        setLoadingResumes(true)
-        const result = await getUserResumes()
-        if (result.success) {
-          setResumes(result.data || [])
-
-          // Update profile completion if we now have resumes
-          if (result.data.length > 0) {
-            setProfileCompletion((prev) => {
-              const hasResumeInMissing = missingFields.includes("Resume")
-              if (hasResumeInMissing) {
-                setMissingFields((prev) => prev.filter((field) => field !== "Resume"))
-                return prev + 100 / 10 // Add 10% to completion (1 of 10 fields)
-              }
-              return prev
-            })
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching resumes:", error)
-      } finally {
-        setLoadingResumes(false)
-      }
-    }
-
     if (user) {
       fetchProfile()
-      fetchResumes()
     }
-  }, [user, router, isLoading, toast])
+  }, [user, router, isLoading])
 
   const handleInputChange = (field: keyof UserProfile, value: any) => {
     setProfileData((prev) => {
-      if (!prev) return null
-      return { ...prev, [field]: value }
-    })
-  }
+      if (!prev) return null;
+      const newProfileData = { ...prev, [field]: value };
+      return newProfileData;
+    });
+  };
 
   const handleProfileUpdate = async () => {
-    if (!profileData) return
+    if (!profileData || !initialProfileData) return;
+
+    console.log("[handleProfileUpdate] Current profileData.avatar:", profileData.avatar); // DEBUG
+    console.log("[handleProfileUpdate] Initial initialProfileData.avatar:", initialProfileData.avatar); // DEBUG
+    if ((profileData.avatar as any) instanceof File) {
+      console.log("[handleProfileUpdate] profileData.avatar is a File object.");
+    }
 
     try {
       setSaving(true)
-      await userApi.updateProfile(USER_ROLES.STUDENT, profileData)
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      })
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update profile",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
 
-  const handleResumeUploadComplete = (url: string) => {
-    if (url) {
-      // Refresh resumes list
-      getUserResumes().then((result) => {
-        if (result.success) {
-          setResumes(result.data || [])
-          toast({
-            title: "Success",
-            description: "Resume uploaded successfully",
-          })
+      const changedData: Partial<UserProfile> = {}
+      for (const key in profileData) {
+        if (Object.prototype.hasOwnProperty.call(profileData, key)) {
+          const typedKey = key as keyof UserProfile
+          const valueFromProfile = profileData[typedKey];
+          const valueFromInitial = initialProfileData ? initialProfileData[typedKey] : undefined;
 
-          // Update profile completion if this is the first resume
-          if (result.data.length === 1) {
-            setProfileCompletion((prev) => {
-              const hasResumeInMissing = missingFields.includes("Resume")
-              if (hasResumeInMissing) {
-                setMissingFields((prev) => prev.filter((field) => field !== "Resume"))
-                return prev + 100 / 10 // Add 10% to completion (1 of 10 fields)
-              }
-              return prev
-            })
+          if (JSON.stringify(valueFromProfile) !== JSON.stringify(valueFromInitial)) {
+            changedData[typedKey] = valueFromProfile;
           }
         }
-      })
-    }
-  }
-
-  const handleDeleteResume = async (resumeId: string) => {
-    try {
-      setDeletingResume(resumeId)
-      const result = await deleteResume(resumeId)
-      if (result.success) {
-        setResumes(resumes.filter((resume) => resume.id !== resumeId))
-        toast({
-          title: "Success",
-          description: "Resume deleted successfully",
-        })
-
-        // Update profile completion if we now have no resumes
-        if (resumes.length === 1) {
-          setProfileCompletion((prev) => {
-            setMissingFields((prev) => [...prev, "Resume"])
-            return prev - 100 / 10 // Subtract 10% from completion (1 of 10 fields)
-          })
-        }
-      } else {
-        throw new Error(result.message)
       }
+      
+      if (Object.keys(changedData).length === 0) {
+        toast.info("No Changes", {
+          description: "You haven\'t made any changes to your profile.",
+        })
+        setSaving(false)
+        return
+      }
+
+      await userApi.updateProfile(changedData as UserProfile)
+      setInitialProfileData(profileData) 
+      toast.success("Profile updated successfully")
     } catch (error) {
-      console.error("Error deleting resume:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete resume",
-        variant: "destructive",
-      })
+      console.error("Error updating profile:", error)
+      toast.error("Failed to update profile")
     } finally {
-      setDeletingResume(null)
+      setSaving(false)
     }
   }
 
@@ -394,8 +320,12 @@ export default function StudentProfilePage() {
                   <CardContent className="-mt-16 relative">
                     <AvatarUpload
                       currentAvatar={profileData?.avatar}
-                      onAvatarChange={(newAvatar) => handleInputChange("avatar", newAvatar)}
-                      role={USER_ROLES.STUDENT}
+                      onAvatarChange={(newAvatarUrl) => {
+                        console.log("[StudentProfilePage] AvatarUpload returned new URL:", newAvatarUrl);
+                        setProfileData(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
+                        setInitialProfileData(prev => prev ? { ...prev, avatar: newAvatarUrl } : null);
+                      }}
+                      role={user?.role}
                     />
                     <h2 className="mt-4 text-2xl font-bold text-center">{profileData?.name}</h2>
                     <p className="text-muted-foreground text-center">Student</p>
@@ -429,6 +359,7 @@ export default function StudentProfilePage() {
                 </Card>
 
                 {/* Resumes */}
+                {/* 
                 <Card className="border-none shadow-lg overflow-hidden">
                   <div className="h-2 bg-gradient-to-r from-vibrant-blue to-vibrant-green w-full"></div>
                   <CardHeader>
@@ -491,6 +422,7 @@ export default function StudentProfilePage() {
                     </div>
                   </CardContent>
                 </Card>
+                */}
               </div>
 
               {/* Main Profile Content */}
@@ -500,7 +432,6 @@ export default function StudentProfilePage() {
                     <TabsTrigger value="personal">Personal Info</TabsTrigger>
                     <TabsTrigger value="education">Education</TabsTrigger>
                     <TabsTrigger value="experience">Experience</TabsTrigger>
-                    <TabsTrigger value="resumes">Resumes</TabsTrigger>
                   </TabsList>
 
                   {/* Personal Information Tab */}
@@ -568,13 +499,16 @@ export default function StudentProfilePage() {
                           <Textarea
                             id="skills"
                             placeholder="Enter your skills (separated by commas)"
-                            value={profileData?.skills?.join(", ") || ""}
+                            value={skillsInputValue}
                             onChange={(e) => {
-                              const skillsArray = e.target.value
+                              const newRawValue = e.target.value;
+                              setSkillsInputValue(newRawValue);
+
+                              const skillsArray = newRawValue
                                 .split(",")
                                 .map((skill) => skill.trim())
-                                .filter(Boolean)
-                              handleInputChange("skills", skillsArray)
+                                .filter(Boolean);
+                              handleInputChange("skills", skillsArray);
                             }}
                           />
                         </div>
@@ -596,20 +530,14 @@ export default function StudentProfilePage() {
                           <Textarea
                             id="achievements"
                             placeholder="List your key achievements and awards (one per line)"
-                            value={profileData?.achievements?.map((a) => a.description).join("\n") || ""}
+                            value={achievementsInputValue}
                             onChange={(e) => {
-                              const achievementsArray = e.target.value
+                              setAchievementsInputValue(e.target.value);
+                              const newAchievements = e.target.value
                                 .split("\n")
-                                .map((achievement) => achievement.trim())
-                                .filter(Boolean)
-                                .map((description, index) => ({
-                                  id: `achievement-${index}`,
-                                  title: description.split(" ").slice(0, 3).join(" "),
-                                  description,
-                                  points: 0,
-                                  icon: "award",
-                                }))
-                              handleInputChange("achievements", achievementsArray)
+                                .map(s => s.trim())
+                                .filter(s => s);
+                              setProfileData(prev => (prev ? { ...prev, achievements: newAchievements } : null));
                             }}
                             className="min-h-[120px]"
                           />
@@ -935,31 +863,6 @@ export default function StudentProfilePage() {
                         )}
                       </CardContent>
                     </Card>
-                  </TabsContent>
-
-                  {/* Resumes Tab */}
-                  <TabsContent value="resumes" className="space-y-6">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Upload Resume</h3>
-                      <ResumeUpload onUploadComplete={handleResumeUploadComplete} />
-                    </div>
-
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Your Resumes</h3>
-                      {loadingResumes ? (
-                        <div className="flex justify-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                      ) : (
-                        <ResumeList
-                          resumes={resumes}
-                          onDelete={(id) => {
-                            setResumes(resumes.filter((resume) => resume.id !== id))
-                            handleDeleteResume(id)
-                          }}
-                        />
-                      )}
-                    </div>
                   </TabsContent>
                 </Tabs>
 

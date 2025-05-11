@@ -9,10 +9,27 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { adminApi, type AdminSettings } from "@/lib/api/admin"
+import { adminApi } from "@/lib/api/admin"
 import { isMockEnabled } from "@/lib/utils/config"
 import { mockAdminSettings } from "@/lib/mock-data/admin"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// Определяем тип AdminSettings локально
+interface AdminSettings {
+  siteName: string
+  supportEmail: string
+  maintenanceMode: boolean
+  emailNotifications: boolean
+  pushNotifications: boolean
+  twoFactorAuth: boolean
+  passwordExpiry: boolean
+  smtpServer: string
+  smtpPort: string
+  smtpUsername?: string
+  smtpPassword?: string
+  smtpSecure?: boolean
+  [key: string]: any
+}
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null)
@@ -33,8 +50,17 @@ export default function AdminSettingsPage() {
         }
 
         // Use real API
+        console.log("Fetching settings from API...")
         const response = await adminApi.getSettings()
-        setSettings(response.data.data)
+        console.log("Settings API response:", response)
+        
+        if (response && response.data) {
+          console.log("Settings data:", response.data)
+          setSettings(response.data)
+        } else {
+          console.error("Unexpected response structure:", response)
+          setError("Received invalid settings data from server")
+        }
         setLoading(false)
       } catch (err) {
         console.error("Error fetching settings:", err)
@@ -142,7 +168,7 @@ export default function AdminSettingsPage() {
           )}
 
           {success && (
-            <Alert className="mb-6 bg-green-50 border-green-200 text-green-800">
+            <Alert className="mb-6 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-400">
               <AlertTitle>Success</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
             </Alert>
