@@ -26,6 +26,7 @@ FROM node:lts-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
 
 # Copy the standalone Next.js server output
 COPY --from=builder /app/.next/standalone ./ 

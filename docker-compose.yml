@@ -21,8 +21,6 @@ services:
   nginx_proxy: # Nginx reverse proxy service
     image: nginx:latest
     container_name: sh-nginx-proxy
-    ports:
-      - "80:80"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - sh_static:/app/staticfiles/:ro
@@ -101,23 +99,23 @@ services:
 ###############################################################################
 # Celery Worker
 ###############################################################################
-  celery_worker:
-    container_name: sh-celery-worker
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
-    command: celery -A config.celery worker -l info
-    env_file: .env
-    volumes:
-      - sh_media:/app/media
-    depends_on:
-      backend:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
+#  celery_worker:
+#    container_name: sh-celery-worker
+#    build:
+#      context: ./backend
+#      dockerfile: Dockerfile.prod
+#    command: celery -A config.celery worker -l info
+#    env_file: .env
+#    volumes:
+#      - sh_media:/app/media
+#    depends_on:
+#      backend:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#    restart: unless-stopped
+#    networks:
+#      - backend
 
 ###############################################################################
 volumes:
@@ -130,4 +128,4 @@ volumes:
 
 networks:
   backend:      { driver: bridge }
-  nginx-proxy:  {} # external: true - Temporarily commented for local testing
+  nginx-proxy:  { external: true } # external: true - Temporarily commented for local testing
