@@ -1,62 +1,140 @@
 # StudentHunter
 
-A platform connecting students with job opportunities.
+StudentHunter is a web platform that helps students find internships, junior positions, and educational opportunities. It connects students and employers in one place and streamlines the whole process: from discovering a vacancy to submitting an application and tracking its status.
 
-## Docker Setup
+The project is built as a modern web application with a Django + Django REST Framework backend and a React frontend, using PostgreSQL as the primary database. It is designed to be deployable on common cloud providers (e.g., AWS) but can also run on any standard Linux/macOS/Windows environment with Docker or a Python/Node.js stack.
 
-This project is containerized using Docker for easy setup and deployment.
+## Goals
 
-### Quick Start
+- Give students easy access to relevant internships and entry-level jobs.
+- Provide employers with a convenient way to publish vacancies and discover young talent.
+- Offer a simple and transparent application flow with status tracking.
+- Deliver notifications and basic recommendations to keep students engaged.
+- Lay the foundation for future enhancements (e.g., AI-based matching, chat, integrations).
 
-1. Make sure you have Docker and Docker Compose installed on your system.
+## Key Features
 
-2. Make the start script executable:
-   \`\`\`bash
-   chmod +x start.sh
-   \`\`\`
+- Student and employer registration and authentication.
+- Student profiles with resumes and basic completion progress (e.g., must be ≥70% to apply).
+- Vacancy creation and management for employers.
+- Vacancy search and filtering by multiple criteria.
+- Application submission and status tracking (submitted, rejected, accepted, etc.).
+- Notification system for new vacancies and status changes.
+- Admin panel for content and user management.
 
-3. Run the start script:
-   \`\`\`bash
-   ./start.sh
-   \`\`\`
+## Tech Stack
 
-4. Access the applications:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - Database: localhost:5432
+**Backend**
 
-### Environment Variables
+- Python 3.x  
+- Django  
+- Django REST Framework  
+- PostgreSQL  
 
-You can customize the application behavior by editing the `.env` file in the project root.
+**Frontend**
 
-### Services
+- React (SPA)  
+- RESTful API integration with the backend  
 
-- **frontend**: Next.js application running on port 3000
-- **backend**: Django application running on port 8000
-- **db**: PostgreSQL database running on port 5432
+**Infrastructure (recommended)**
 
-### Volumes
+- Docker for containerization  
+- AWS (EC2, RDS PostgreSQL, S3, ELB) or any other cloud provider  
+- Redis (caching, Celery broker)  
+- Sentry / similar tool for error tracking and monitoring  
 
-- **postgres_data**: Persistent storage for the database
-- **static_volume**: Django static files
-- **media_volume**: Django media files
+## Architecture Overview
 
-### Development vs Production
+For the initial MVP, StudentHunter is implemented as a monolithic Django application that exposes a REST API consumed by a React frontend.
 
-This Docker setup is designed to work in both development and production environments.
-For production, you should:
+Main backend modules (conceptual):
 
-1. Set `DEBUG=False` in the `.env` file
-2. Use a proper `SECRET_KEY`
-3. Configure proper database credentials
-4. Set `NEXT_PUBLIC_MOCK_ENABLED=false`
+- `accounts` – user management (students, employers, admins, roles, auth).
+- `jobs` – vacancy creation, editing, search, and filtering.
+- `applications` – job applications and status workflow.
+- `notifications` – email and in-app notifications.
+- `admin_dashboard` – administration and moderation tools.
 
-### Manual Docker Commands
+As the project grows, selected modules (e.g., notifications) can be split into separate services and communicate via REST APIs or a message broker.
 
-- Start services: `docker-compose up -d`
-- View logs: `docker-compose logs -f`
-- Stop services: `docker-compose down`
-- Rebuild services: `docker-compose up -d --build`
-\`\`\`
+## Installation & Setup (Development)
 
-Now, let's delete the docker folder since we've moved everything to the root:
+Below is a generic development setup. Adjust paths/commands to your actual repo structure.
+
+### Prerequisites
+
+- Python 3.x  
+- Node.js (LTS) and npm or yarn  
+- PostgreSQL  
+- Git  
+- (Optional) Docker & Docker Compose
+
+### Backend
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/sl-ars/StudentHunter.git
+   cd StudentHunter
+   ```
+
+2. Create and activate a virtual environment, then install dependencies:
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # on Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. Configure environment variables (e.g. in `.env`):
+
+   - Database connection (PostgreSQL)
+   - Secret key
+   - Email/notification settings (optional)
+
+4. Apply migrations and run the development server:
+
+   ```bash
+   python manage.py migrate
+   python manage.py runserver
+   ```
+
+### Frontend
+
+1. Go to your frontend folder (e.g. `frontend/`):
+
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+2. Open the URL shown in the console (typically http://localhost:3000) to access the frontend.
+
+### Docker (Optional)
+
+If you have Docker configuration, you can start everything with:
+
+```bash
+docker compose up
+```
+
+## Documentation
+
+- Project overview, installation and usage: this `README.md`.
+- Contribution guidelines: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Governance and ownership: [`GOVERNANCE.md`](GOVERNANCE.md)
+- Code of Conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Privacy & data handling: [`PRIVACY.md`](PRIVACY.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- DPG Self-Assessment: [`docs/dpg-self-assessment.md`](docs/dpg-self-assessment.md)
+
+## License
+
+StudentHunter is released under an open source license.  
+See the [`LICENSE`](LICENSE) file for details.
+
+## Contributing
+
+We welcome contributions from students, educators, and employers.  
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before opening an issue or submitting a pull request.
