@@ -1,5 +1,6 @@
 # StudentHunter
 
+![Main page](docs/main_page.png)
 StudentHunter is a web platform that helps students find internships, junior positions, and educational opportunities. It connects students and employers in one place and streamlines the whole process: from discovering a vacancy to submitting an application and tracking its status.
 
 The project is built as a modern web application with a Django + Django REST Framework backend and a React frontend, using PostgreSQL as the primary database. It is designed to be deployable on common cloud providers (e.g., AWS) but can also run on any standard Linux/macOS/Windows environment with Docker or a Python/Node.js stack.
